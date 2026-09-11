@@ -1,4 +1,5 @@
 import AgenticInference
+import Foundation
 import Primitives
 
 public struct AgentInferenceRealizationCandidateIdentifier:
@@ -86,21 +87,266 @@ public struct AgentInferenceRealizationCandidate:
     }
 }
 
+public enum AgentInferenceOptimizationScoreParsingError:
+    Error,
+    Sendable,
+    LocalizedError
+{
+    case nonFinite(Double)
+
+    public var errorDescription: String? {
+        switch self {
+        case .nonFinite(let value):
+            return "Inference optimization score must be finite; received \(value)."
+        }
+    }
+}
+
 public struct AgentInferenceOptimizationScore:
     Sendable,
     Codable,
     Hashable
 {
     /// Objective value. Higher values are better.
-    public var value: Double
-    public var metadata: [String: String]
+    public let value: Double
+    public let metadata: [String: String]
+
+    private enum CodingKeys: String, CodingKey {
+        case value
+        case metadata
+    }
+
+    private init(
+        parsedValue value: Double,
+        metadata: [String: String]
+    ) {
+        self.value = value
+        self.metadata = metadata
+    }
 
     public init(
         value: Double,
         metadata: [String: String] = [:]
+    ) throws {
+        self = try Self.parse(
+            value: value,
+            metadata: metadata
+        )
+    }
+
+    public static func parse(
+        value: Double,
+        metadata: [String: String] = [:]
+    ) throws -> Self {
+        guard value.isFinite else {
+            throw AgentInferenceOptimizationScoreParsingError.nonFinite(
+                value
+            )
+        }
+
+        return Self(
+            parsedValue: value,
+            metadata: metadata
+        )
+    }
+
+    public init(
+        from decoder: Decoder
+    ) throws {
+        let container = try decoder.container(
+            keyedBy: CodingKeys.self
+        )
+
+        self = try Self.parse(
+            value: try container.decode(
+                Double.self,
+                forKey: .value
+            ),
+            metadata: try container.decodeIfPresent(
+                [String: String].self,
+                forKey: .metadata
+            ) ?? [:]
+        )
+    }
+
+    public func encode(
+        to encoder: Encoder
+    ) throws {
+        var container = encoder.container(
+            keyedBy: CodingKeys.self
+        )
+
+        try container.encode(
+            value,
+            forKey: .value
+        )
+        try container.encode(
+            metadata,
+            forKey: .metadata
+        )
+    }
+}
+
+public enum AgentInferenceOptimizationProblemParsingError:
+    Error,
+    Sendable,
+    LocalizedError
+{
+    case noExamples
+    case noCandidates
+    case duplicateCandidateIdentifier(
+        AgentInferenceRealizationCandidateIdentifier
+    )
+
+    public var errorDescription: String? {
+        switch self {
+        case .noExamples:
+            return "Inference realization optimization requires at least one example."
+
+        case .noCandidates:
+            return "Inference realization optimization requires at least one candidate."
+
+        case .duplicateCandidateIdentifier(let identifier):
+            return "Inference realization optimization contains duplicate candidate identifier '\(identifier.rawValue)'."
+        }
+    }
+}
+
+public struct AgentInferenceOptimizationExamples<Inference: AgentInference>:
+    Sendable,
+    RandomAccessCollection
+{
+    public typealias Element = AgentInferenceOptimizationExample<Inference>
+    public typealias Index = Int
+
+    private let storage: [Element]
+
+    public var startIndex: Int {
+        storage.startIndex
+    }
+
+    public var endIndex: Int {
+        storage.endIndex
+    }
+
+    public subscript(
+        position: Int
+    ) -> Element {
+        storage[position]
+    }
+
+    private init(
+        parsed storage: [Element]
     ) {
-        self.value = value
-        self.metadata = metadata
+        self.storage = storage
+    }
+
+    public static func parse(
+        _ examples: [Element]
+    ) throws -> Self {
+        guard !examples.isEmpty else {
+            throw AgentInferenceOptimizationProblemParsingError.noExamples
+        }
+
+        return Self(
+            parsed: examples
+        )
+    }
+
+    public var values: [Element] {
+        storage
+    }
+}
+
+public struct AgentInferenceRealizationCandidates:
+    Sendable,
+    RandomAccessCollection
+{
+    public typealias Element = AgentInferenceRealizationCandidate
+    public typealias Index = Int
+
+    private let storage: [Element]
+
+    public var startIndex: Int {
+        storage.startIndex
+    }
+
+    public var endIndex: Int {
+        storage.endIndex
+    }
+
+    public subscript(
+        position: Int
+    ) -> Element {
+        storage[position]
+    }
+
+    public var initial: Element {
+        storage[0]
+    }
+
+    private init(
+        parsed storage: [Element]
+    ) {
+        self.storage = storage
+    }
+
+    public static func parse(
+        _ candidates: [Element]
+    ) throws -> Self {
+        guard !candidates.isEmpty else {
+            throw AgentInferenceOptimizationProblemParsingError.noCandidates
+        }
+
+        var identifiers: Set<
+            AgentInferenceRealizationCandidateIdentifier
+        > = []
+
+        for candidate in candidates {
+            guard identifiers.insert(candidate.identifier).inserted else {
+                throw AgentInferenceOptimizationProblemParsingError
+                    .duplicateCandidateIdentifier(
+                        candidate.identifier
+                    )
+            }
+        }
+
+        return Self(
+            parsed: candidates
+        )
+    }
+
+    public var values: [Element] {
+        storage
+    }
+}
+
+public struct AgentInferenceOptimizationProblem<Inference: AgentInference>:
+    Sendable
+{
+    public let examples: AgentInferenceOptimizationExamples<Inference>
+    public let candidates: AgentInferenceRealizationCandidates
+
+    public init(
+        examples: AgentInferenceOptimizationExamples<Inference>,
+        candidates: AgentInferenceRealizationCandidates
+    ) {
+        self.examples = examples
+        self.candidates = candidates
+    }
+
+    public static func parse(
+        examples: [AgentInferenceOptimizationExample<Inference>],
+        candidates: [AgentInferenceRealizationCandidate]
+    ) throws -> Self {
+        Self(
+            examples: try AgentInferenceOptimizationExamples.parse(
+                examples
+            ),
+            candidates: try AgentInferenceRealizationCandidates.parse(
+                candidates
+            )
+        )
     }
 }
 
@@ -143,17 +389,73 @@ public struct AgentInferenceOptimizationCandidateResult:
     Hashable
 {
     public var candidate: AgentInferenceRealizationCandidate
-    public var meanScore: Double
+    public let mean: AgentInferenceOptimizationScore
     public var trialIndexes: [Int]
+
+    public var meanScore: Double {
+        mean.value
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case candidate
+        case meanScore
+        case trialIndexes
+    }
 
     public init(
         candidate: AgentInferenceRealizationCandidate,
-        meanScore: Double,
+        mean: AgentInferenceOptimizationScore,
         trialIndexes: [Int]
     ) {
         self.candidate = candidate
-        self.meanScore = meanScore
+        self.mean = mean
         self.trialIndexes = trialIndexes
+    }
+
+    public init(
+        from decoder: Decoder
+    ) throws {
+        let container = try decoder.container(
+            keyedBy: CodingKeys.self
+        )
+
+        self.init(
+            candidate: try container.decode(
+                AgentInferenceRealizationCandidate.self,
+                forKey: .candidate
+            ),
+            mean: try AgentInferenceOptimizationScore.parse(
+                value: try container.decode(
+                    Double.self,
+                    forKey: .meanScore
+                )
+            ),
+            trialIndexes: try container.decode(
+                [Int].self,
+                forKey: .trialIndexes
+            )
+        )
+    }
+
+    public func encode(
+        to encoder: Encoder
+    ) throws {
+        var container = encoder.container(
+            keyedBy: CodingKeys.self
+        )
+
+        try container.encode(
+            candidate,
+            forKey: .candidate
+        )
+        try container.encode(
+            meanScore,
+            forKey: .meanScore
+        )
+        try container.encode(
+            trialIndexes,
+            forKey: .trialIndexes
+        )
     }
 }
 

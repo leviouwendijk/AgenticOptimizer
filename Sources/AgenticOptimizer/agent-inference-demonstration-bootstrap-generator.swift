@@ -70,9 +70,6 @@ public enum AgentInferenceDemonstrationBootstrapGeneratorError:
     LocalizedError
 {
     case invalidMinimumScore(Double)
-    case invalidScore(
-        exampleIndex: Int
-    )
     case duplicateCandidateIdentifier(
         AgentInferenceRealizationCandidateIdentifier
     )
@@ -82,9 +79,6 @@ public enum AgentInferenceDemonstrationBootstrapGeneratorError:
         switch self {
         case .invalidMinimumScore(let score):
             return "Demonstration bootstrap requires a finite minimum score; received \(score)."
-
-        case .invalidScore(let exampleIndex):
-            return "Demonstration bootstrap objective returned a non-finite score for example \(exampleIndex)."
 
         case .duplicateCandidateIdentifier(let identifier):
             return "Demonstration bootstrap candidate identifier '\(identifier.rawValue)' collides with another generated candidate."
@@ -170,13 +164,6 @@ public struct AgentInferenceDemonstrationBootstrapGenerator:
                 example: example,
                 result: execution
             )
-
-            guard score.value.isFinite else {
-                throw AgentInferenceDemonstrationBootstrapGeneratorError
-                    .invalidScore(
-                        exampleIndex: exampleIndex
-                    )
-            }
 
             let accepted = score.value >= minimumScore
 

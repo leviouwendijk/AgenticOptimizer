@@ -1,6 +1,6 @@
-import Foundation
 import AgenticInference
 import AgenticPrograms
+import Foundation
 import Primitives
 
 public enum ProgramOptimization {}
@@ -69,18 +69,15 @@ public extension ProgramOptimization {
     struct ResolvedSite: Sendable {
         public let site: AgentInferenceSiteIdentifier
         public let inference: AgentInferenceIdentifier
-        public let bindingIndex: Int
         public let candidates: [AgentInferenceRealizationCandidate]
 
         init(
             site: AgentInferenceSiteIdentifier,
             inference: AgentInferenceIdentifier,
-            bindingIndex: Int,
             candidates: [AgentInferenceRealizationCandidate]
         ) {
             self.site = site
             self.inference = inference
-            self.bindingIndex = bindingIndex
             self.candidates = candidates
         }
     }
@@ -188,17 +185,13 @@ public extension ProgramOptimization {
                     }
                 }
 
-                guard let bindingIndex = seed.inferences.firstIndex(
-                    where: {
-                        $0.site == site.site
-                    }
+                guard let binding = seed.inference(
+                    at: site.site
                 ) else {
                     throw SearchSpaceError.seedBindingUnavailable(
                         site.site
                     )
                 }
-
-                let binding = seed.inferences[bindingIndex]
 
                 guard binding.inference == site.inference else {
                     throw SearchSpaceError.inferenceMismatch(
@@ -212,7 +205,6 @@ public extension ProgramOptimization {
                     ResolvedSite(
                         site: site.site,
                         inference: site.inference,
-                        bindingIndex: bindingIndex,
                         candidates: site.candidates
                     )
                 )
@@ -247,14 +239,18 @@ public extension ProgramOptimization {
     {
         public let value: Int
 
+        private enum CodingKeys: String, CodingKey {
+            case value
+        }
+
         private init(
-            _ value: Int
+            parsed value: Int
         ) {
             self.value = value
         }
 
         public static let standard = Self(
-            64
+            parsed: 64
         )
 
         public static func parse(
@@ -267,7 +263,33 @@ public extension ProgramOptimization {
             }
 
             return Self(
-                value
+                parsed: value
+            )
+        }
+
+        public init(
+            from decoder: Decoder
+        ) throws {
+            let container = try decoder.container(
+                keyedBy: CodingKeys.self
+            )
+            self = try Self.parse(
+                try container.decode(
+                    Int.self,
+                    forKey: .value
+                )
+            )
+        }
+
+        public func encode(
+            to encoder: Encoder
+        ) throws {
+            var container = encoder.container(
+                keyedBy: CodingKeys.self
+            )
+            try container.encode(
+                value,
+                forKey: .value
             )
         }
     }
@@ -311,6 +333,163 @@ public extension ProgramOptimization {
         }
     }
 
+    enum ProblemParsingError:
+        Error,
+        Sendable,
+        LocalizedError
+    {
+        case noExamples
+        case noCandidates
+        case duplicateCandidateIdentifier(CandidateID)
+
+        public var errorDescription: String? {
+            switch self {
+            case .noExamples:
+                return "Program realization optimization requires at least one example."
+
+            case .noCandidates:
+                return "Program realization optimization requires at least one candidate."
+
+            case .duplicateCandidateIdentifier(let identifier):
+                return "Program realization optimization contains duplicate candidate identifier '\(identifier.rawValue)'."
+            }
+        }
+    }
+
+    struct Examples<Program: AgentProgram>:
+        Sendable,
+        RandomAccessCollection
+    {
+        public typealias Element = Example<Program>
+        public typealias Index = Int
+
+        private let storage: [Element]
+
+        public var startIndex: Int {
+            storage.startIndex
+        }
+
+        public var endIndex: Int {
+            storage.endIndex
+        }
+
+        public subscript(
+            position: Int
+        ) -> Element {
+            storage[position]
+        }
+
+        private init(
+            parsed storage: [Element]
+        ) {
+            self.storage = storage
+        }
+
+        public static func parse(
+            _ examples: [Element]
+        ) throws -> Self {
+            guard !examples.isEmpty else {
+                throw ProblemParsingError.noExamples
+            }
+
+            return Self(
+                parsed: examples
+            )
+        }
+
+        public var values: [Element] {
+            storage
+        }
+    }
+
+    struct Candidates<Program: AgentProgram>:
+        Sendable,
+        RandomAccessCollection
+    {
+        public typealias Element = Candidate<Program>
+        public typealias Index = Int
+
+        private let storage: [Element]
+
+        public var startIndex: Int {
+            storage.startIndex
+        }
+
+        public var endIndex: Int {
+            storage.endIndex
+        }
+
+        public subscript(
+            position: Int
+        ) -> Element {
+            storage[position]
+        }
+
+        public var initial: Element {
+            storage[0]
+        }
+
+        private init(
+            parsed storage: [Element]
+        ) {
+            self.storage = storage
+        }
+
+        public static func parse(
+            _ candidates: [Element]
+        ) throws -> Self {
+            guard !candidates.isEmpty else {
+                throw ProblemParsingError.noCandidates
+            }
+
+            var identifiers: Set<CandidateID> = []
+
+            for candidate in candidates {
+                guard identifiers.insert(candidate.id).inserted else {
+                    throw ProblemParsingError
+                        .duplicateCandidateIdentifier(
+                            candidate.id
+                        )
+                }
+            }
+
+            return Self(
+                parsed: candidates
+            )
+        }
+
+        public var values: [Element] {
+            storage
+        }
+    }
+
+    struct Problem<Program: AgentProgram>: Sendable {
+        public let examples: Examples<Program>
+        public let candidates: Candidates<Program>
+
+        public init(
+            examples: Examples<Program>,
+            candidates: Candidates<Program>
+        ) {
+            self.examples = examples
+            self.candidates = candidates
+        }
+
+        public static func parse(
+            examples: [Example<Program>],
+            candidates: [Candidate<Program>]
+        ) throws -> Self {
+            Self(
+                examples: try Examples.parse(
+                    examples
+                ),
+                candidates: try Candidates.parse(
+                    candidates
+                )
+            )
+        }
+    }
+
     struct Trial:
         Sendable,
         Codable,
@@ -333,16 +512,20 @@ public extension ProgramOptimization {
 
     struct CandidateResult<Program: AgentProgram>: Sendable {
         public var candidate: Candidate<Program>
-        public var meanScore: Double
+        public let mean: AgentInferenceOptimizationScore
         public var trialIndexes: [Int]
+
+        public var meanScore: Double {
+            mean.value
+        }
 
         public init(
             candidate: Candidate<Program>,
-            meanScore: Double,
+            mean: AgentInferenceOptimizationScore,
             trialIndexes: [Int]
         ) {
             self.candidate = candidate
-            self.meanScore = meanScore
+            self.mean = mean
             self.trialIndexes = trialIndexes
         }
     }

@@ -1,40 +1,4 @@
 import AgenticInference
-import Foundation
-
-public enum AgentInferenceRealizationSearchError:
-    Error,
-    Sendable,
-    LocalizedError
-{
-    case noCandidates
-    case noExamples
-    case invalidScore(
-        objective: AgentInferenceOptimizationObjectiveIdentifier,
-        candidate: AgentInferenceRealizationCandidateIdentifier,
-        exampleIndex: Int
-    )
-    case noSelectionProduced
-
-    public var errorDescription: String? {
-        switch self {
-        case .noCandidates:
-            return "Inference realization optimization requires at least one candidate."
-
-        case .noExamples:
-            return "Inference realization optimization requires at least one example."
-
-        case .invalidScore(
-            let objective,
-            let candidate,
-            let exampleIndex
-        ):
-            return "Optimization objective '\(objective.rawValue)' returned a non-finite score for candidate '\(candidate.rawValue)' on example \(exampleIndex)."
-
-        case .noSelectionProduced:
-            return "Inference realization optimization completed without selecting a candidate."
-        }
-    }
-}
 
 public struct AgentInferenceRealizationSearch: Sendable {
     private let executor: any AgentInferenceExecuting
@@ -54,16 +18,25 @@ public struct AgentInferenceRealizationSearch: Sendable {
         seed: AgentInferenceRealization,
         generator: any AgentInferenceRealizationCandidateGenerating
     ) async throws -> AgentInferenceOptimizationResult {
-        let candidates = try await generator.generate(
+        let parsedExamples =
+            try AgentInferenceOptimizationExamples<Inference>.parse(
+                examples
+            )
+        let generated = try await generator.generate(
             inference,
-            examples: examples,
+            examples: parsedExamples.values,
             seed: seed
+        )
+        let problem = AgentInferenceOptimizationProblem(
+            examples: parsedExamples,
+            candidates: try AgentInferenceRealizationCandidates.parse(
+                generated
+            )
         )
 
         return try await optimize(
             inference,
-            examples: examples,
-            candidates: candidates
+            problem: problem
         )
     }
 
@@ -72,25 +45,34 @@ public struct AgentInferenceRealizationSearch: Sendable {
         examples: [AgentInferenceOptimizationExample<Inference>],
         candidates: [AgentInferenceRealizationCandidate]
     ) async throws -> AgentInferenceOptimizationResult {
-        guard !candidates.isEmpty else {
-            throw AgentInferenceRealizationSearchError.noCandidates
-        }
+        try await optimize(
+            inference,
+            problem: AgentInferenceOptimizationProblem.parse(
+                examples: examples,
+                candidates: candidates
+            )
+        )
+    }
 
-        guard !examples.isEmpty else {
-            throw AgentInferenceRealizationSearchError.noExamples
-        }
-
+    public func optimize<Inference: AgentInference>(
+        _ inference: Inference.Type,
+        problem: AgentInferenceOptimizationProblem<Inference>
+    ) async throws -> AgentInferenceOptimizationResult {
         var trials: [AgentInferenceOptimizationTrial] = []
         var candidateResults: [AgentInferenceOptimizationCandidateResult] = []
 
-        var selectedCandidate: AgentInferenceRealizationCandidate?
-        var selectedMeanScore: Double?
+        var selectedCandidate = problem.candidates.initial
+        var selectedMean: AgentInferenceOptimizationScore?
 
-        for candidate in candidates {
+        let exampleCount = Double(
+            problem.examples.count
+        )
+
+        for candidate in problem.candidates {
             let firstTrialIndex = trials.count
-            var totalScore = 0.0
+            var meanValue = 0.0
 
-            for (exampleIndex, example) in examples.enumerated() {
+            for (exampleIndex, example) in problem.examples.enumerated() {
                 let execution = try await executor.execute(
                     inference,
                     input: example.input,
@@ -102,15 +84,7 @@ public struct AgentInferenceRealizationSearch: Sendable {
                     result: execution
                 )
 
-                guard score.value.isFinite else {
-                    throw AgentInferenceRealizationSearchError.invalidScore(
-                        objective: objective.identifier,
-                        candidate: candidate.identifier,
-                        exampleIndex: exampleIndex
-                    )
-                }
-
-                totalScore += score.value
+                meanValue += score.value / exampleCount
 
                 trials.append(
                     AgentInferenceOptimizationTrial(
@@ -122,7 +96,9 @@ public struct AgentInferenceRealizationSearch: Sendable {
                 )
             }
 
-            let meanScore = totalScore / Double(examples.count)
+            let mean = try AgentInferenceOptimizationScore(
+                value: meanValue
+            )
             let trialIndexes = Array(
                 firstTrialIndex..<trials.count
             )
@@ -130,24 +106,20 @@ public struct AgentInferenceRealizationSearch: Sendable {
             candidateResults.append(
                 AgentInferenceOptimizationCandidateResult(
                     candidate: candidate,
-                    meanScore: meanScore,
+                    mean: mean,
                     trialIndexes: trialIndexes
                 )
             )
 
-            if let currentSelectedMeanScore = selectedMeanScore {
-                if meanScore > currentSelectedMeanScore {
+            if let currentSelectedMean = selectedMean {
+                if mean.value > currentSelectedMean.value {
                     selectedCandidate = candidate
-                    selectedMeanScore = meanScore
+                    selectedMean = mean
                 }
             } else {
                 selectedCandidate = candidate
-                selectedMeanScore = meanScore
+                selectedMean = mean
             }
-        }
-
-        guard let selectedCandidate else {
-            throw AgentInferenceRealizationSearchError.noSelectionProduced
         }
 
         return AgentInferenceOptimizationResult(

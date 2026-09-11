@@ -163,7 +163,7 @@ private struct ProgramExactObjective:
             from: outputData
         )
 
-        return AgentInferenceOptimizationScore(
+        return try AgentInferenceOptimizationScore(
             value: expected == actual ? 1.0 : 0.0,
             metadata: [
                 "expected": expected,
@@ -218,54 +218,60 @@ extension AgenticOptimizerFlowTesting {
                 id: "baseline",
                 realization: AgentProgramRealization(
                     id: "fixture.program.baseline",
-                    inferences: [
-                        AgentInferenceRealizationBinding(
-                            site: "prepare",
-                            inference: PrepareProgramInference.definition.identifier,
-                            realization: identity
-                        ),
-                        AgentInferenceRealizationBinding(
-                            site: "finalize",
-                            inference: FinalizeProgramInference.definition.identifier,
-                            realization: identity
-                        ),
-                    ]
+                    inferences: try AgentProgramInferenceBindings(
+                        [
+                            AgentInferenceRealizationBinding(
+                                site: "prepare",
+                                inference: PrepareProgramInference.definition.identifier,
+                                realization: identity
+                            ),
+                            AgentInferenceRealizationBinding(
+                                site: "finalize",
+                                inference: FinalizeProgramInference.definition.identifier,
+                                realization: identity
+                            ),
+                        ]
+                    )
                 )
             ),
             .init(
                 id: "prepare_uppercase",
                 realization: AgentProgramRealization(
                     id: "fixture.program.prepare_uppercase",
-                    inferences: [
-                        AgentInferenceRealizationBinding(
-                            site: "prepare",
-                            inference: PrepareProgramInference.definition.identifier,
-                            realization: uppercase
-                        ),
-                        AgentInferenceRealizationBinding(
-                            site: "finalize",
-                            inference: FinalizeProgramInference.definition.identifier,
-                            realization: identity
-                        ),
-                    ]
+                    inferences: try AgentProgramInferenceBindings(
+                        [
+                            AgentInferenceRealizationBinding(
+                                site: "prepare",
+                                inference: PrepareProgramInference.definition.identifier,
+                                realization: uppercase
+                            ),
+                            AgentInferenceRealizationBinding(
+                                site: "finalize",
+                                inference: FinalizeProgramInference.definition.identifier,
+                                realization: identity
+                            ),
+                        ]
+                    )
                 )
             ),
             .init(
                 id: "finalize_uppercase",
                 realization: AgentProgramRealization(
                     id: "fixture.program.finalize_uppercase",
-                    inferences: [
-                        AgentInferenceRealizationBinding(
-                            site: "prepare",
-                            inference: PrepareProgramInference.definition.identifier,
-                            realization: identity
-                        ),
-                        AgentInferenceRealizationBinding(
-                            site: "finalize",
-                            inference: FinalizeProgramInference.definition.identifier,
-                            realization: uppercase
-                        ),
-                    ]
+                    inferences: try AgentProgramInferenceBindings(
+                        [
+                            AgentInferenceRealizationBinding(
+                                site: "prepare",
+                                inference: PrepareProgramInference.definition.identifier,
+                                realization: identity
+                            ),
+                            AgentInferenceRealizationBinding(
+                                site: "finalize",
+                                inference: FinalizeProgramInference.definition.identifier,
+                                realization: uppercase
+                            ),
+                        ]
+                    )
                 )
             ),
         ]
@@ -362,7 +368,7 @@ extension AgenticOptimizerFlowTesting {
                 examples: examples,
                 candidates: []
             )
-        } catch ProgramRealizationSearchError.no_candidates {
+        } catch ProgramOptimization.ProblemParsingError.noCandidates {
             emptyCandidatesRejected = true
         }
 
@@ -379,7 +385,7 @@ extension AgenticOptimizerFlowTesting {
                 examples: [],
                 candidates: candidates
             )
-        } catch ProgramRealizationSearchError.no_examples {
+        } catch ProgramOptimization.ProblemParsingError.noExamples {
             emptyExamplesRejected = true
         }
 

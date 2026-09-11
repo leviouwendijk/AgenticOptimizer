@@ -96,7 +96,7 @@ private struct ExactOutputObjective:
             from: actualData
         )
 
-        return AgentInferenceOptimizationScore(
+        return try AgentInferenceOptimizationScore(
             value: expected == actual ? 1.0 : 0.0,
             metadata: [
                 "expected": expected,
@@ -270,7 +270,7 @@ enum AgenticOptimizerFlowTesting {
                 examples: examples,
                 candidates: []
             )
-        } catch AgentInferenceRealizationSearchError.noCandidates {
+        } catch AgentInferenceOptimizationProblemParsingError.noCandidates {
             emptyCandidatesRejected = true
         }
 
@@ -288,7 +288,7 @@ enum AgenticOptimizerFlowTesting {
                 examples: [],
                 candidates: candidates
             )
-        } catch AgentInferenceRealizationSearchError.noExamples {
+        } catch AgentInferenceOptimizationProblemParsingError.noExamples {
             emptyExamplesRejected = true
         }
 

@@ -46,12 +46,13 @@ public struct ProgramRealizationCandidateGenerator: Sendable {
                     indexes[siteIndex]
                 ]
 
-                realization.inferences[site.bindingIndex] =
+                realization.inferences.set(
                     AgentInferenceRealizationBinding(
                         site: site.site,
                         inference: site.inference,
                         realization: candidate.realization
                     )
+                )
 
                 selections.append(
                     ProgramOptimization.SiteSelection(

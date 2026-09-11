@@ -105,7 +105,7 @@ private struct DemonstrationExactObjective:
             from: actualData
         )
 
-        return AgentInferenceOptimizationScore(
+        return try AgentInferenceOptimizationScore(
             value: expected == actual ? 1.0 : 0.0
         )
     }

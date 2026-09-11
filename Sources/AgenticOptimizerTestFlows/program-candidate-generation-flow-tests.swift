@@ -134,7 +134,7 @@ private struct CombinationExactObjective:
             from: actualData
         )
 
-        return AgentInferenceOptimizationScore(
+        return try AgentInferenceOptimizationScore(
             value: expected == actual ? 1.0 : 0.0
         )
     }
@@ -173,18 +173,20 @@ extension AgenticOptimizerFlowTesting {
 
         let seed = AgentProgramRealization<CombinationFixtureProgram>(
             id: "fixture.program.combination_seed",
-            inferences: [
-                AgentInferenceRealizationBinding(
-                    site: "prepare",
-                    inference: CombinationPrepareInference.definition.identifier,
-                    realization: identity
-                ),
-                AgentInferenceRealizationBinding(
-                    site: "finalize",
-                    inference: CombinationFinalizeInference.definition.identifier,
-                    realization: identity
-                ),
-            ],
+            inferences: try AgentProgramInferenceBindings(
+                [
+                    AgentInferenceRealizationBinding(
+                        site: "prepare",
+                        inference: CombinationPrepareInference.definition.identifier,
+                        realization: identity
+                    ),
+                    AgentInferenceRealizationBinding(
+                        site: "finalize",
+                        inference: CombinationFinalizeInference.definition.identifier,
+                        realization: identity
+                    ),
+                ]
+            ),
             metadata: [
                 "seed_marker": "preserved",
             ]
@@ -494,6 +496,19 @@ extension AgenticOptimizerFlowTesting {
             invalidLimitRejected,
             true,
             "candidate-limit parsing prevents non-positive generation limits"
+        )
+
+        let decodedLimit = try JSONDecoder().decode(
+            ProgramOptimization.CandidateLimit.self,
+            from: JSONEncoder().encode(
+                limit
+            )
+        )
+
+        try Expect.equal(
+            decodedLimit,
+            limit,
+            "candidate-limit Codable round trip preserves the parsed positive value"
         )
 
         return [

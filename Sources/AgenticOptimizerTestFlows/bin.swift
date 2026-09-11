@@ -111,5 +111,19 @@ enum AgenticOptimizerFlowSuite: TestFlowRegistry {
             try await AgenticOptimizerFlowTesting
                 .runProgramCandidateGeneration()
         },
+        TestFlow(
+            "optimization-input-parsing",
+            tags: [
+                "agentic-optimizer",
+                "optimization",
+                "parsing",
+                "codable",
+                "score",
+                "problem",
+            ]
+        ) {
+            try await AgenticOptimizerFlowTesting
+                .runOptimizationInputParsing()
+        },
     ]
 }
