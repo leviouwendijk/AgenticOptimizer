@@ -1,5 +1,6 @@
 import AgenticInference
 import Foundation
+import Primitives
 
 public struct AgentInferenceDemonstrationVariant:
     Sendable,
@@ -29,11 +30,15 @@ public enum AgentInferenceDemonstrationVariantGeneratorError:
     case duplicateCandidateIdentifier(
         AgentInferenceRealizationCandidateIdentifier
     )
+    case noCandidates
 
     public var errorDescription: String? {
         switch self {
         case .duplicateCandidateIdentifier(let identifier):
             return "Demonstration candidate identifier '\(identifier.rawValue)' is duplicated."
+
+        case .noCandidates:
+            return "Demonstration candidate generation requires at least one seed or demonstration variant."
         }
     }
 }
@@ -42,18 +47,53 @@ public struct AgentInferenceDemonstrationVariantGenerator:
     AgentInferenceRealizationCandidateGenerating,
     Sendable
 {
-    public var variants: [AgentInferenceDemonstrationVariant]
-    public var includeSeed: Bool
-    public var seedIdentifier: AgentInferenceRealizationCandidateIdentifier
+    public let variants: [AgentInferenceDemonstrationVariant]
+    public let includeSeed: Bool
+    public let seedIdentifier: AgentInferenceRealizationCandidateIdentifier
 
-    public init(
-        variants: [AgentInferenceDemonstrationVariant],
-        includeSeed: Bool = true,
-        seedIdentifier: AgentInferenceRealizationCandidateIdentifier = "seed"
+    private init(
+        parsedVariants variants: [AgentInferenceDemonstrationVariant],
+        includeSeed: Bool,
+        seedIdentifier: AgentInferenceRealizationCandidateIdentifier
     ) {
         self.variants = variants
         self.includeSeed = includeSeed
         self.seedIdentifier = seedIdentifier
+    }
+
+    public static func parse(
+        variants: [AgentInferenceDemonstrationVariant],
+        includeSeed: Bool = true,
+        seedIdentifier: AgentInferenceRealizationCandidateIdentifier = "seed"
+    ) throws -> Self {
+        var identifiers: Set<
+            AgentInferenceRealizationCandidateIdentifier
+        > = []
+
+        if includeSeed {
+            identifiers.insert(
+                seedIdentifier
+            )
+        }
+
+        for variant in variants {
+            guard identifiers.insert(variant.identifier).inserted else {
+                throw AgentInferenceDemonstrationVariantGeneratorError
+                    .duplicateCandidateIdentifier(
+                        variant.identifier
+                    )
+            }
+        }
+
+        guard includeSeed || !variants.isEmpty else {
+            throw AgentInferenceDemonstrationVariantGeneratorError.noCandidates
+        }
+
+        return Self(
+            parsedVariants: variants,
+            includeSeed: includeSeed,
+            seedIdentifier: seedIdentifier
+        )
     }
 
     public func generate<Inference: AgentInference>(
@@ -61,15 +101,9 @@ public struct AgentInferenceDemonstrationVariantGenerator:
         examples: [AgentInferenceOptimizationExample<Inference>],
         seed: AgentInferenceRealization
     ) async throws -> [AgentInferenceRealizationCandidate] {
-        var identifiers: Set<AgentInferenceRealizationCandidateIdentifier> = []
         var candidates: [AgentInferenceRealizationCandidate] = []
 
         if includeSeed {
-            try insertIdentifier(
-                seedIdentifier,
-                into: &identifiers
-            )
-
             candidates.append(
                 AgentInferenceRealizationCandidate(
                     identifier: seedIdentifier,
@@ -80,11 +114,6 @@ public struct AgentInferenceDemonstrationVariantGenerator:
         }
 
         for variant in variants {
-            try insertIdentifier(
-                variant.identifier,
-                into: &identifiers
-            )
-
             var realization = seed
             realization.demonstrations = variant.demonstrations
 
@@ -99,17 +128,5 @@ public struct AgentInferenceDemonstrationVariantGenerator:
         }
 
         return candidates
-    }
-
-    private func insertIdentifier(
-        _ identifier: AgentInferenceRealizationCandidateIdentifier,
-        into identifiers: inout Set<AgentInferenceRealizationCandidateIdentifier>
-    ) throws {
-        guard identifiers.insert(identifier).inserted else {
-            throw AgentInferenceDemonstrationVariantGeneratorError
-                .duplicateCandidateIdentifier(
-                    identifier
-                )
-        }
     }
 }

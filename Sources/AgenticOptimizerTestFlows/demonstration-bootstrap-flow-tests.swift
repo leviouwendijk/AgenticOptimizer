@@ -147,7 +147,7 @@ extension AgenticOptimizerFlowTesting {
             ]
         )
         let objective = BootstrapExactObjective()
-        let generator = AgentInferenceDemonstrationBootstrapGenerator(
+        let generator = try AgentInferenceDemonstrationBootstrapGenerator.parse(
             executor: BootstrapFixtureExecutor(),
             objective: objective,
             teacher: teacher,
@@ -335,7 +335,7 @@ extension AgenticOptimizerFlowTesting {
         var collisionRejected = false
 
         do {
-            _ = try await AgentInferenceDemonstrationBootstrapGenerator(
+            _ = try AgentInferenceDemonstrationBootstrapGenerator.parse(
                 executor: BootstrapFixtureExecutor(),
                 objective: objective,
                 teacher: teacher,
@@ -343,10 +343,6 @@ extension AgenticOptimizerFlowTesting {
                 includeSeed: true,
                 seedIdentifier: "same",
                 bootstrapIdentifier: "same"
-            ).generate(
-                BootstrapFixtureInference.self,
-                examples: examples,
-                seed: seed
             )
         } catch AgentInferenceDemonstrationBootstrapGeneratorError
             .duplicateCandidateIdentifier {
@@ -356,7 +352,28 @@ extension AgenticOptimizerFlowTesting {
         try Expect.equal(
             collisionRejected,
             true,
-            "bootstrap generation rejects ambiguous candidate identities"
+            "bootstrap configuration parsing rejects ambiguous candidate identities before execution"
+        )
+
+        var nonFiniteMinimumRejected = false
+
+        do {
+            _ = try AgentInferenceDemonstrationBootstrapGenerator.parse(
+                executor: BootstrapFixtureExecutor(),
+                objective: objective,
+                teacher: teacher,
+                minimumScore: .infinity,
+                includeSeed: false
+            )
+        } catch AgentInferenceOptimizationScoreParsingError
+            .nonFinite {
+            nonFiniteMinimumRejected = true
+        }
+
+        try Expect.equal(
+            nonFiniteMinimumRejected,
+            true,
+            "bootstrap configuration parses its minimum score into the finite score representation"
         )
 
         return [
@@ -393,6 +410,10 @@ extension AgenticOptimizerFlowTesting {
             .field(
                 "collision_rejected",
                 String(collisionRejected)
+            ),
+            .field(
+                "nonfinite_minimum_rejected",
+                String(nonFiniteMinimumRejected)
             ),
         ]
     }

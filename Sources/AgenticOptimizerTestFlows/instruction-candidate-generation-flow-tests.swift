@@ -137,7 +137,7 @@ extension AgenticOptimizerFlowTesting {
                 "seed_marker": "preserved",
             ]
         )
-        let generator = AgentInferenceInstructionVariantGenerator(
+        let generator = try AgentInferenceInstructionVariantGenerator.parse(
             variants: [
                 .init(
                     identifier: "constant",
@@ -263,7 +263,7 @@ extension AgenticOptimizerFlowTesting {
         var duplicateRejected = false
 
         do {
-            _ = try await AgentInferenceInstructionVariantGenerator(
+            _ = try AgentInferenceInstructionVariantGenerator.parse(
                 variants: [
                     .init(
                         identifier: "duplicate",
@@ -275,10 +275,6 @@ extension AgenticOptimizerFlowTesting {
                     ),
                 ],
                 includeSeed: false
-            ).generate(
-                GeneratedCandidateFixtureInference.self,
-                examples: examples,
-                seed: seed
             )
         } catch AgentInferenceInstructionVariantGeneratorError
             .duplicateCandidateIdentifier {
@@ -294,7 +290,7 @@ extension AgenticOptimizerFlowTesting {
         var emptyInstructionsRejected = false
 
         do {
-            _ = try await AgentInferenceInstructionVariantGenerator(
+            _ = try AgentInferenceInstructionVariantGenerator.parse(
                 variants: [
                     .init(
                         identifier: "empty",
@@ -302,10 +298,6 @@ extension AgenticOptimizerFlowTesting {
                     ),
                 ],
                 includeSeed: false
-            ).generate(
-                GeneratedCandidateFixtureInference.self,
-                examples: examples,
-                seed: seed
             )
         } catch AgentInferenceInstructionVariantGeneratorError
             .emptyInstructions {
@@ -315,7 +307,25 @@ extension AgenticOptimizerFlowTesting {
         try Expect.equal(
             emptyInstructionsRejected,
             true,
-            "instruction generation rejects empty candidate instructions"
+            "instruction candidate parsing rejects empty instructions before generation"
+        )
+
+        var noCandidatesRejected = false
+
+        do {
+            _ = try AgentInferenceInstructionVariantGenerator.parse(
+                variants: [],
+                includeSeed: false
+            )
+        } catch AgentInferenceInstructionVariantGeneratorError
+            .noCandidates {
+            noCandidatesRejected = true
+        }
+
+        try Expect.equal(
+            noCandidatesRejected,
+            true,
+            "instruction candidate parsing guarantees a non-empty generated candidate set"
         )
 
         let encoded = try JSONEncoder().encode(

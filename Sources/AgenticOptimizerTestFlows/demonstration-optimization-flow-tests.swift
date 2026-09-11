@@ -162,7 +162,7 @@ extension AgenticOptimizerFlowTesting {
             ]
         )
 
-        let generator = AgentInferenceDemonstrationVariantGenerator(
+        let generator = try AgentInferenceDemonstrationVariantGenerator.parse(
             variants: [
                 .init(
                     identifier: "constant_demo",
@@ -314,7 +314,7 @@ extension AgenticOptimizerFlowTesting {
         var duplicateRejected = false
 
         do {
-            _ = try await AgentInferenceDemonstrationVariantGenerator(
+            _ = try AgentInferenceDemonstrationVariantGenerator.parse(
                 variants: [
                     .init(
                         identifier: "duplicate",
@@ -328,10 +328,6 @@ extension AgenticOptimizerFlowTesting {
                     ),
                 ],
                 includeSeed: false
-            ).generate(
-                DemonstrationFixtureInference.self,
-                examples: examples,
-                seed: seed
             )
         } catch AgentInferenceDemonstrationVariantGeneratorError
             .duplicateCandidateIdentifier {
@@ -341,7 +337,25 @@ extension AgenticOptimizerFlowTesting {
         try Expect.equal(
             duplicateRejected,
             true,
-            "demonstration generation rejects ambiguous candidate identities"
+            "demonstration candidate parsing rejects ambiguous candidate identities"
+        )
+
+        var noCandidatesRejected = false
+
+        do {
+            _ = try AgentInferenceDemonstrationVariantGenerator.parse(
+                variants: [],
+                includeSeed: false
+            )
+        } catch AgentInferenceDemonstrationVariantGeneratorError
+            .noCandidates {
+            noCandidatesRejected = true
+        }
+
+        try Expect.equal(
+            noCandidatesRejected,
+            true,
+            "demonstration candidate parsing guarantees a non-empty generated candidate set"
         )
 
         let encoded = try JSONEncoder().encode(

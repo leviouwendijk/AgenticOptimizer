@@ -69,7 +69,6 @@ public enum AgentInferenceDemonstrationBootstrapGeneratorError:
     Sendable,
     LocalizedError
 {
-    case invalidMinimumScore(Double)
     case duplicateCandidateIdentifier(
         AgentInferenceRealizationCandidateIdentifier
     )
@@ -77,9 +76,6 @@ public enum AgentInferenceDemonstrationBootstrapGeneratorError:
 
     public var errorDescription: String? {
         switch self {
-        case .invalidMinimumScore(let score):
-            return "Demonstration bootstrap requires a finite minimum score; received \(score)."
-
         case .duplicateCandidateIdentifier(let identifier):
             return "Demonstration bootstrap candidate identifier '\(identifier.rawValue)' collides with another generated candidate."
 
@@ -96,20 +92,20 @@ public struct AgentInferenceDemonstrationBootstrapGenerator:
     private let executor: any AgentInferenceExecuting
     private let objective: any AgentInferenceOptimizationObjective
 
-    public var teacher: AgentInferenceRealization
-    public var minimumScore: Double
-    public var includeSeed: Bool
-    public var seedIdentifier: AgentInferenceRealizationCandidateIdentifier
-    public var bootstrapIdentifier: AgentInferenceRealizationCandidateIdentifier
+    public let teacher: AgentInferenceRealization
+    public let minimumScore: AgentInferenceOptimizationScore
+    public let includeSeed: Bool
+    public let seedIdentifier: AgentInferenceRealizationCandidateIdentifier
+    public let bootstrapIdentifier: AgentInferenceRealizationCandidateIdentifier
 
-    public init(
+    private init(
         executor: any AgentInferenceExecuting,
         objective: any AgentInferenceOptimizationObjective,
         teacher: AgentInferenceRealization,
-        minimumScore: Double,
-        includeSeed: Bool = true,
-        seedIdentifier: AgentInferenceRealizationCandidateIdentifier = "seed",
-        bootstrapIdentifier: AgentInferenceRealizationCandidateIdentifier = "bootstrapped"
+        parsedMinimumScore minimumScore: AgentInferenceOptimizationScore,
+        includeSeed: Bool,
+        seedIdentifier: AgentInferenceRealizationCandidateIdentifier,
+        bootstrapIdentifier: AgentInferenceRealizationCandidateIdentifier
     ) {
         self.executor = executor
         self.objective = objective
@@ -120,27 +116,45 @@ public struct AgentInferenceDemonstrationBootstrapGenerator:
         self.bootstrapIdentifier = bootstrapIdentifier
     }
 
+    public static func parse(
+        executor: any AgentInferenceExecuting,
+        objective: any AgentInferenceOptimizationObjective,
+        teacher: AgentInferenceRealization,
+        minimumScore: Double,
+        includeSeed: Bool = true,
+        seedIdentifier: AgentInferenceRealizationCandidateIdentifier = "seed",
+        bootstrapIdentifier: AgentInferenceRealizationCandidateIdentifier = "bootstrapped"
+    ) throws -> Self {
+        let parsedMinimumScore = try AgentInferenceOptimizationScore(
+            value: minimumScore
+        )
+
+        if includeSeed && seedIdentifier == bootstrapIdentifier {
+            throw AgentInferenceDemonstrationBootstrapGeneratorError
+                .duplicateCandidateIdentifier(
+                    seedIdentifier
+                )
+        }
+
+        return Self(
+            executor: executor,
+            objective: objective,
+            teacher: teacher,
+            parsedMinimumScore: parsedMinimumScore,
+            includeSeed: includeSeed,
+            seedIdentifier: seedIdentifier,
+            bootstrapIdentifier: bootstrapIdentifier
+        )
+    }
+
     public func generate<Inference: AgentInference>(
         _ inference: Inference.Type,
         examples: [AgentInferenceOptimizationExample<Inference>],
         seed: AgentInferenceRealization
     ) async throws -> [AgentInferenceRealizationCandidate] {
-        guard minimumScore.isFinite else {
-            throw AgentInferenceDemonstrationBootstrapGeneratorError
-                .invalidMinimumScore(
-                    minimumScore
-                )
-        }
-
-        var identifiers: Set<AgentInferenceRealizationCandidateIdentifier> = []
         var candidates: [AgentInferenceRealizationCandidate] = []
 
         if includeSeed {
-            try insertIdentifier(
-                seedIdentifier,
-                into: &identifiers
-            )
-
             candidates.append(
                 AgentInferenceRealizationCandidate(
                     identifier: seedIdentifier,
@@ -164,8 +178,7 @@ public struct AgentInferenceDemonstrationBootstrapGenerator:
                 example: example,
                 result: execution
             )
-
-            let accepted = score.value >= minimumScore
+            let accepted = score.value >= minimumScore.value
 
             var metadata = example.metadata
             metadata["bootstrap.example_index"] = String(
@@ -205,16 +218,11 @@ public struct AgentInferenceDemonstrationBootstrapGenerator:
         }
 
         if !acceptedDemonstrations.isEmpty {
-            try insertIdentifier(
-                bootstrapIdentifier,
-                into: &identifiers
-            )
-
             let bootstrap = AgentInferenceDemonstrationBootstrapRecord(
                 inference: inference.definition.identifier,
                 objective: objective.identifier,
                 teacher: teacher,
-                minimumScore: minimumScore,
+                minimumScore: minimumScore.value,
                 trials: trials
             )
 
@@ -260,17 +268,5 @@ public struct AgentInferenceDemonstrationBootstrapGenerator:
             JSONValue.self,
             from: data
         )
-    }
-
-    private func insertIdentifier(
-        _ identifier: AgentInferenceRealizationCandidateIdentifier,
-        into identifiers: inout Set<AgentInferenceRealizationCandidateIdentifier>
-    ) throws {
-        guard identifiers.insert(identifier).inserted else {
-            throw AgentInferenceDemonstrationBootstrapGeneratorError
-                .duplicateCandidateIdentifier(
-                    identifier
-                )
-        }
     }
 }

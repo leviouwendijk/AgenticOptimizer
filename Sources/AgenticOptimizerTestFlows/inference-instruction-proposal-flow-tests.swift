@@ -236,7 +236,7 @@ extension AgenticOptimizerFlowTesting {
         )
 
         let recorder = ProposalRecorder()
-        let generator = AgentInferenceInstructionProposalCandidateGenerator(
+        let generator = try AgentInferenceInstructionProposalCandidateGenerator.parse(
             proposer: ProposalFixtureExecutor(
                 recorder: recorder
             ),
@@ -245,6 +245,50 @@ extension AgenticOptimizerFlowTesting {
             includeSeed: true,
             seedIdentifier: "baseline"
         )
+        var invalidMaximumRejected = false
+
+        do {
+            _ = try AgentInferenceInstructionProposalCandidateGenerator.parse(
+                proposer: ProposalFixtureExecutor(
+                    recorder: recorder
+                ),
+                proposalRealization: proposalRealization,
+                maximumProposals: 0
+            )
+        } catch AgentInferenceInstructionProposalGeneratorError
+            .invalidMaximumProposals {
+            invalidMaximumRejected = true
+        }
+
+        try Expect.equal(
+            invalidMaximumRejected,
+            true,
+            "proposal generator parsing rejects non-positive proposal limits before execution"
+        )
+
+        var identifierCollisionRejected = false
+
+        do {
+            _ = try AgentInferenceInstructionProposalCandidateGenerator.parse(
+                proposer: ProposalFixtureExecutor(
+                    recorder: recorder
+                ),
+                proposalRealization: proposalRealization,
+                maximumProposals: 3,
+                includeSeed: true,
+                seedIdentifier: "proposal_1"
+            )
+        } catch AgentInferenceInstructionProposalGeneratorError
+            .duplicateCandidateIdentifier {
+            identifierCollisionRejected = true
+        }
+
+        try Expect.equal(
+            identifierCollisionRejected,
+            true,
+            "proposal generator parsing rejects seed identities reserved for generated proposals"
+        )
+
         let search = AgentInferenceRealizationSearch(
             executor: ProposalSearchFixtureExecutor(),
             objective: ProposalExactOutputObjective()
@@ -380,6 +424,14 @@ extension AgenticOptimizerFlowTesting {
             .field(
                 "selected",
                 result.selectedCandidate.identifier.rawValue
+            ),
+            .field(
+                "invalid_maximum_rejected",
+                String(invalidMaximumRejected)
+            ),
+            .field(
+                "identifier_collision_rejected",
+                String(identifierCollisionRejected)
             ),
             .field(
                 "source",
