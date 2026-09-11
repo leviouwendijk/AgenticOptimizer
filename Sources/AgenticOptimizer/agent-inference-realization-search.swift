@@ -51,6 +51,25 @@ public struct AgentInferenceRealizationSearch: Sendable {
     public func optimize<Inference: AgentInference>(
         _ inference: Inference.Type,
         examples: [AgentInferenceOptimizationExample<Inference>],
+        seed: AgentInferenceRealization,
+        generator: any AgentInferenceRealizationCandidateGenerating
+    ) async throws -> AgentInferenceOptimizationResult {
+        let candidates = try await generator.generate(
+            inference,
+            examples: examples,
+            seed: seed
+        )
+
+        return try await optimize(
+            inference,
+            examples: examples,
+            candidates: candidates
+        )
+    }
+
+    public func optimize<Inference: AgentInference>(
+        _ inference: Inference.Type,
+        examples: [AgentInferenceOptimizationExample<Inference>],
         candidates: [AgentInferenceRealizationCandidate]
     ) async throws -> AgentInferenceOptimizationResult {
         guard !candidates.isEmpty else {

@@ -26,5 +26,19 @@ enum AgenticOptimizerFlowSuite: TestFlowRegistry {
             try await AgenticOptimizerFlowTesting
                 .runInferenceRealizationSearch()
         },
+        TestFlow(
+            "instruction-candidate-generation",
+            tags: [
+                "agentic-optimizer",
+                "inference",
+                "realization",
+                "generation",
+                "instructions",
+                "search",
+            ]
+        ) {
+            try await AgenticOptimizerFlowTesting
+                .runInstructionCandidateGeneration()
+        },
     ]
 }

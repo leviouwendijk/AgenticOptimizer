@@ -84,6 +84,17 @@ public struct AgentInferenceOptimizationExample<Inference: AgentInference>:
     }
 }
 
+public enum AgentInferenceRealizationCandidateSource:
+    String,
+    Sendable,
+    Codable,
+    Hashable
+{
+    case supplied
+    case seed
+    case instruction_variant
+}
+
 public struct AgentInferenceRealizationCandidate:
     Sendable,
     Codable,
@@ -91,15 +102,18 @@ public struct AgentInferenceRealizationCandidate:
 {
     public var identifier: AgentInferenceRealizationCandidateIdentifier
     public var realization: AgentInferenceRealization
+    public var source: AgentInferenceRealizationCandidateSource
     public var metadata: [String: String]
 
     public init(
         identifier: AgentInferenceRealizationCandidateIdentifier,
         realization: AgentInferenceRealization,
+        source: AgentInferenceRealizationCandidateSource = .supplied,
         metadata: [String: String] = [:]
     ) {
         self.identifier = identifier
         self.realization = realization
+        self.source = source
         self.metadata = metadata
     }
 }
