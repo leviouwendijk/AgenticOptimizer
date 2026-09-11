@@ -1,16 +1,12 @@
 import AgenticInference
 import AgenticPrograms
+import Primitives
 
 public enum ProgramOptimization {}
 
 public extension ProgramOptimization {
     struct CandidateID:
-        Sendable,
-        Codable,
-        Hashable,
-        RawRepresentable,
-        ExpressibleByStringLiteral,
-        CustomStringConvertible
+        StringIdentifier
     {
         public let rawValue: String
 
@@ -18,32 +14,11 @@ public extension ProgramOptimization {
             rawValue: String
         ) {
             self.rawValue = rawValue
-        }
-
-        public init(
-            _ rawValue: String
-        ) {
-            self.rawValue = rawValue
-        }
-
-        public init(
-            stringLiteral value: String
-        ) {
-            self.rawValue = value
-        }
-
-        public var description: String {
-            rawValue
         }
     }
 
     struct ObjectiveID:
-        Sendable,
-        Codable,
-        Hashable,
-        RawRepresentable,
-        ExpressibleByStringLiteral,
-        CustomStringConvertible
+        StringIdentifier
     {
         public let rawValue: String
 
@@ -51,22 +26,6 @@ public extension ProgramOptimization {
             rawValue: String
         ) {
             self.rawValue = rawValue
-        }
-
-        public init(
-            _ rawValue: String
-        ) {
-            self.rawValue = rawValue
-        }
-
-        public init(
-            stringLiteral value: String
-        ) {
-            self.rawValue = value
-        }
-
-        public var description: String {
-            rawValue
         }
     }
 
