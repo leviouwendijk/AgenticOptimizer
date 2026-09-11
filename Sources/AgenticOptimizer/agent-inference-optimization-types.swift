@@ -94,6 +94,7 @@ public enum AgentInferenceRealizationCandidateSource:
     case seed
     case instruction_variant
     case inference_proposal
+    case demonstration_variant
 }
 
 public struct AgentInferenceRealizationCandidate:

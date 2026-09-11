@@ -54,5 +54,19 @@ enum AgenticOptimizerFlowSuite: TestFlowRegistry {
             try await AgenticOptimizerFlowTesting
                 .runInferenceInstructionProposal()
         },
+        TestFlow(
+            "demonstration-optimization",
+            tags: [
+                "agentic-optimizer",
+                "inference",
+                "optimization",
+                "demonstrations",
+                "few-shot",
+                "search",
+            ]
+        ) {
+            try await AgenticOptimizerFlowTesting
+                .runDemonstrationOptimization()
+        },
     ]
 }
