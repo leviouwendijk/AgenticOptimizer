@@ -52,6 +52,10 @@ let package = Package(
                     package: "AgenticInference"
                 ),
                 .product(
+                    name: "Primitives",
+                    package: "Primitives"
+                ),
+                .product(
                     name: "Schema",
                     package: "Schema"
                 ),

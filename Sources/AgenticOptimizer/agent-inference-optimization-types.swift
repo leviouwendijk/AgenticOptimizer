@@ -95,6 +95,7 @@ public enum AgentInferenceRealizationCandidateSource:
     case instruction_variant
     case inference_proposal
     case demonstration_variant
+    case demonstration_bootstrap
 }
 
 public struct AgentInferenceRealizationCandidate:
@@ -106,6 +107,7 @@ public struct AgentInferenceRealizationCandidate:
     public var realization: AgentInferenceRealization
     public var source: AgentInferenceRealizationCandidateSource
     public var generation: AgentInferenceExecutionRecord?
+    public var bootstrap: AgentInferenceDemonstrationBootstrapRecord?
     public var metadata: [String: String]
 
     public init(
@@ -113,12 +115,14 @@ public struct AgentInferenceRealizationCandidate:
         realization: AgentInferenceRealization,
         source: AgentInferenceRealizationCandidateSource = .supplied,
         generation: AgentInferenceExecutionRecord? = nil,
+        bootstrap: AgentInferenceDemonstrationBootstrapRecord? = nil,
         metadata: [String: String] = [:]
     ) {
         self.identifier = identifier
         self.realization = realization
         self.source = source
         self.generation = generation
+        self.bootstrap = bootstrap
         self.metadata = metadata
     }
 }
