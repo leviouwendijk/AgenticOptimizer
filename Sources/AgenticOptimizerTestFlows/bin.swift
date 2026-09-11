@@ -96,5 +96,20 @@ enum AgenticOptimizerFlowSuite: TestFlowRegistry {
             try await AgenticOptimizerFlowTesting
                 .runProgramRealizationOptimization()
         },
+        TestFlow(
+            "program-candidate-generation",
+            tags: [
+                "agentic-optimizer",
+                "program",
+                "optimization",
+                "generation",
+                "inference-sites",
+                "bounded",
+                "provenance",
+            ]
+        ) {
+            try await AgenticOptimizerFlowTesting
+                .runProgramCandidateGeneration()
+        },
     ]
 }

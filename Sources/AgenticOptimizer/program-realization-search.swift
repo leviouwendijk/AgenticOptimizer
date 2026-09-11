@@ -52,6 +52,28 @@ public struct ProgramRealizationSearch<Program: AgentProgram>: Sendable {
 
     public func optimize(
         examples: [ProgramOptimization.Example<Program>],
+        seed: AgentProgramRealization<Program>,
+        sites: [ProgramOptimization.SiteCandidates],
+        maximumCandidates: Int = 64,
+        candidateIDPrefix: String = "combination"
+    ) async throws -> ProgramOptimization.Result<Program> {
+        let generator = ProgramRealizationCandidateGenerator(
+            maximumCandidates: maximumCandidates,
+            candidateIDPrefix: candidateIDPrefix
+        )
+        let candidates = try generator.generate(
+            seed: seed,
+            sites: sites
+        )
+
+        return try await optimize(
+            examples: examples,
+            candidates: candidates
+        )
+    }
+
+    public func optimize(
+        examples: [ProgramOptimization.Example<Program>],
         candidates: [ProgramOptimization.Candidate<Program>]
     ) async throws -> ProgramOptimization.Result<Program> {
         guard !candidates.isEmpty else {

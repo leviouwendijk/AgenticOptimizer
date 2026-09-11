@@ -45,18 +45,61 @@ public extension ProgramOptimization {
         }
     }
 
+    struct SiteCandidates:
+        Sendable,
+        Codable,
+        Hashable
+    {
+        public var site: AgentInferenceSiteIdentifier
+        public var inference: AgentInferenceIdentifier
+        public var candidates: [AgentInferenceRealizationCandidate]
+
+        public init(
+            site: AgentInferenceSiteIdentifier,
+            inference: AgentInferenceIdentifier,
+            candidates: [AgentInferenceRealizationCandidate]
+        ) {
+            self.site = site
+            self.inference = inference
+            self.candidates = candidates
+        }
+    }
+
+    struct SiteSelection:
+        Sendable,
+        Codable,
+        Hashable
+    {
+        public var site: AgentInferenceSiteIdentifier
+        public var inference: AgentInferenceIdentifier
+        public var candidate: AgentInferenceRealizationCandidate
+
+        public init(
+            site: AgentInferenceSiteIdentifier,
+            inference: AgentInferenceIdentifier,
+            candidate: AgentInferenceRealizationCandidate
+        ) {
+            self.site = site
+            self.inference = inference
+            self.candidate = candidate
+        }
+    }
+
     struct Candidate<Program: AgentProgram>: Sendable {
         public var id: CandidateID
         public var realization: AgentProgramRealization<Program>
+        public var selections: [SiteSelection]
         public var metadata: [String: String]
 
         public init(
             id: CandidateID,
             realization: AgentProgramRealization<Program>,
+            selections: [SiteSelection] = [],
             metadata: [String: String] = [:]
         ) {
             self.id = id
             self.realization = realization
+            self.selections = selections
             self.metadata = metadata
         }
     }
