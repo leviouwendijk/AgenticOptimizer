@@ -27,6 +27,14 @@ let package = Package(
             branch: "master"
         ),
         .package(
+            url: "https://github.com/leviouwendijk/Schema.git",
+            branch: "master"
+        ),
+        .package(
+            url: "https://github.com/leviouwendijk/SchemaMacros.git",
+            branch: "master"
+        ),
+        .package(
             url: "https://github.com/leviouwendijk/TestFlows.git",
             branch: "master"
         ),
@@ -38,6 +46,14 @@ let package = Package(
                 .product(
                     name: "AgenticInference",
                     package: "AgenticInference"
+                ),
+                .product(
+                    name: "Schema",
+                    package: "Schema"
+                ),
+                .product(
+                    name: "SchemaMacros",
+                    package: "SchemaMacros"
                 ),
             ]
         ),
