@@ -236,13 +236,21 @@ extension AgenticOptimizerFlowTesting {
             ),
         ]
 
+        let searchSpace = try ProgramOptimization
+            .SearchSpace<CombinationFixtureProgram>
+            .parse(
+                seed: seed,
+                sites: sites
+            )
+        let limit = try ProgramOptimization.CandidateLimit.parse(
+            4
+        )
         let generator = ProgramRealizationCandidateGenerator(
-            maximumCandidates: 4,
+            limit: limit,
             candidateIDPrefix: "program"
         )
-        let generated = try generator.generate(
-            seed: seed,
-            sites: sites
+        let generated = generator.generate(
+            from: searchSpace
         )
 
         try Expect.equal(
@@ -353,9 +361,8 @@ extension AgenticOptimizerFlowTesting {
         )
         let result = try await search.optimize(
             examples: examples,
-            seed: seed,
-            sites: sites,
-            maximumCandidates: 4,
+            searchSpace: searchSpace,
+            limit: limit,
             candidateIDPrefix: "program"
         )
 
@@ -414,14 +421,16 @@ extension AgenticOptimizerFlowTesting {
         var duplicateSiteRejected = false
 
         do {
-            _ = try generator.generate(
-                seed: seed,
-                sites: [
-                    sites[0],
-                    sites[0],
-                ]
-            )
-        } catch let error as ProgramRealizationCandidateGeneratorError {
+            _ = try ProgramOptimization
+                .SearchSpace<CombinationFixtureProgram>
+                .parse(
+                    seed: seed,
+                    sites: [
+                        sites[0],
+                        sites[0],
+                    ]
+                )
+        } catch let error as ProgramOptimization.SearchSpaceError {
             switch error {
             case .duplicateSite:
                 duplicateSiteRejected = true
@@ -434,23 +443,25 @@ extension AgenticOptimizerFlowTesting {
         try Expect.equal(
             duplicateSiteRejected,
             true,
-            "program combination generation rejects ambiguous duplicate site spaces"
+            "search-space parsing rejects ambiguous duplicate sites before generation"
         )
 
         var emptySiteRejected = false
 
         do {
-            _ = try generator.generate(
-                seed: seed,
-                sites: [
-                    ProgramOptimization.SiteCandidates(
-                        site: "prepare",
-                        inference: CombinationPrepareInference.definition.identifier,
-                        candidates: []
-                    ),
-                ]
-            )
-        } catch let error as ProgramRealizationCandidateGeneratorError {
+            _ = try ProgramOptimization
+                .SearchSpace<CombinationFixtureProgram>
+                .parse(
+                    seed: seed,
+                    sites: [
+                        ProgramOptimization.SiteCandidates(
+                            site: "prepare",
+                            inference: CombinationPrepareInference.definition.identifier,
+                            candidates: []
+                        ),
+                    ]
+                )
+        } catch let error as ProgramOptimization.SearchSpaceError {
             switch error {
             case .emptySiteCandidates:
                 emptySiteRejected = true
@@ -463,7 +474,26 @@ extension AgenticOptimizerFlowTesting {
         try Expect.equal(
             emptySiteRejected,
             true,
-            "program combination generation rejects empty inference-site search spaces"
+            "search-space parsing rejects empty inference-site candidate spaces before generation"
+        )
+
+        var invalidLimitRejected = false
+
+        do {
+            _ = try ProgramOptimization.CandidateLimit.parse(
+                0
+            )
+        } catch let error as ProgramOptimization.CandidateLimitError {
+            switch error {
+            case .nonPositive:
+                invalidLimitRejected = true
+            }
+        }
+
+        try Expect.equal(
+            invalidLimitRejected,
+            true,
+            "candidate-limit parsing prevents non-positive generation limits"
         )
 
         return [
@@ -504,6 +534,10 @@ extension AgenticOptimizerFlowTesting {
             .field(
                 "empty_site_rejected",
                 String(emptySiteRejected)
+            ),
+            .field(
+                "invalid_limit_rejected",
+                String(invalidLimitRejected)
             ),
         ]
     }

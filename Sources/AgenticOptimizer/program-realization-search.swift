@@ -57,13 +57,35 @@ public struct ProgramRealizationSearch<Program: AgentProgram>: Sendable {
         maximumCandidates: Int = 64,
         candidateIDPrefix: String = "combination"
     ) async throws -> ProgramOptimization.Result<Program> {
-        let generator = ProgramRealizationCandidateGenerator(
-            maximumCandidates: maximumCandidates,
+        let searchSpace = try ProgramOptimization.SearchSpace<Program>
+            .parse(
+                seed: seed,
+                sites: sites
+            )
+        let limit = try ProgramOptimization.CandidateLimit.parse(
+            maximumCandidates
+        )
+
+        return try await optimize(
+            examples: examples,
+            searchSpace: searchSpace,
+            limit: limit,
             candidateIDPrefix: candidateIDPrefix
         )
-        let candidates = try generator.generate(
-            seed: seed,
-            sites: sites
+    }
+
+    public func optimize(
+        examples: [ProgramOptimization.Example<Program>],
+        searchSpace: ProgramOptimization.SearchSpace<Program>,
+        limit: ProgramOptimization.CandidateLimit = .standard,
+        candidateIDPrefix: String = "combination"
+    ) async throws -> ProgramOptimization.Result<Program> {
+        let generator = ProgramRealizationCandidateGenerator(
+            limit: limit,
+            candidateIDPrefix: candidateIDPrefix
+        )
+        let candidates = generator.generate(
+            from: searchSpace
         )
 
         return try await optimize(

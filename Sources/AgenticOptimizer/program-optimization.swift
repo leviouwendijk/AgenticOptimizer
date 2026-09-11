@@ -1,3 +1,4 @@
+import Foundation
 import AgenticInference
 import AgenticPrograms
 import Primitives
@@ -62,6 +63,212 @@ public extension ProgramOptimization {
             self.site = site
             self.inference = inference
             self.candidates = candidates
+        }
+    }
+
+    struct ResolvedSite: Sendable {
+        public let site: AgentInferenceSiteIdentifier
+        public let inference: AgentInferenceIdentifier
+        public let bindingIndex: Int
+        public let candidates: [AgentInferenceRealizationCandidate]
+
+        init(
+            site: AgentInferenceSiteIdentifier,
+            inference: AgentInferenceIdentifier,
+            bindingIndex: Int,
+            candidates: [AgentInferenceRealizationCandidate]
+        ) {
+            self.site = site
+            self.inference = inference
+            self.bindingIndex = bindingIndex
+            self.candidates = candidates
+        }
+    }
+
+    enum SearchSpaceError:
+        Error,
+        Sendable,
+        LocalizedError
+    {
+        case noSites
+        case duplicateSite(AgentInferenceSiteIdentifier)
+        case emptySiteCandidates(AgentInferenceSiteIdentifier)
+        case duplicateInferenceCandidate(
+            site: AgentInferenceSiteIdentifier,
+            candidate: AgentInferenceRealizationCandidateIdentifier
+        )
+        case seedBindingUnavailable(AgentInferenceSiteIdentifier)
+        case inferenceMismatch(
+            site: AgentInferenceSiteIdentifier,
+            seed: AgentInferenceIdentifier,
+            candidates: AgentInferenceIdentifier
+        )
+
+        public var errorDescription: String? {
+            switch self {
+            case .noSites:
+                return "Program optimization search space requires at least one inference site."
+
+            case .duplicateSite(let site):
+                return "Program optimization search space contains duplicate inference site '\(site.rawValue)'."
+
+            case .emptySiteCandidates(let site):
+                return "Program optimization inference site '\(site.rawValue)' has no realization candidates."
+
+            case .duplicateInferenceCandidate(
+                let site,
+                let candidate
+            ):
+                return "Program optimization inference site '\(site.rawValue)' contains duplicate candidate '\(candidate.rawValue)'."
+
+            case .seedBindingUnavailable(let site):
+                return "Program optimization seed realization has no inference binding at site '\(site.rawValue)'."
+
+            case .inferenceMismatch(
+                let site,
+                let seed,
+                let candidates
+            ):
+                return "Program optimization inference site '\(site.rawValue)' is bound to '\(seed.rawValue)' in the seed realization but candidate space targets '\(candidates.rawValue)'."
+            }
+        }
+    }
+
+    struct SearchSpace<Program: AgentProgram>: Sendable {
+        public let seed: AgentProgramRealization<Program>
+        public let sites: [ResolvedSite]
+
+        private init(
+            seed: AgentProgramRealization<Program>,
+            sites: [ResolvedSite]
+        ) {
+            self.seed = seed
+            self.sites = sites
+        }
+
+        public static func parse(
+            seed: AgentProgramRealization<Program>,
+            sites: [SiteCandidates]
+        ) throws -> Self {
+            guard !sites.isEmpty else {
+                throw SearchSpaceError.noSites
+            }
+
+            var seenSites: Set<AgentInferenceSiteIdentifier> = []
+            var resolved: [ResolvedSite] = []
+
+            for site in sites {
+                guard seenSites.insert(site.site).inserted else {
+                    throw SearchSpaceError.duplicateSite(
+                        site.site
+                    )
+                }
+
+                guard !site.candidates.isEmpty else {
+                    throw SearchSpaceError.emptySiteCandidates(
+                        site.site
+                    )
+                }
+
+                var seenCandidates: Set<
+                    AgentInferenceRealizationCandidateIdentifier
+                > = []
+
+                for candidate in site.candidates {
+                    guard
+                        seenCandidates
+                            .insert(candidate.identifier)
+                            .inserted
+                    else {
+                        throw SearchSpaceError
+                            .duplicateInferenceCandidate(
+                                site: site.site,
+                                candidate: candidate.identifier
+                            )
+                    }
+                }
+
+                guard let bindingIndex = seed.inferences.firstIndex(
+                    where: {
+                        $0.site == site.site
+                    }
+                ) else {
+                    throw SearchSpaceError.seedBindingUnavailable(
+                        site.site
+                    )
+                }
+
+                let binding = seed.inferences[bindingIndex]
+
+                guard binding.inference == site.inference else {
+                    throw SearchSpaceError.inferenceMismatch(
+                        site: site.site,
+                        seed: binding.inference,
+                        candidates: site.inference
+                    )
+                }
+
+                resolved.append(
+                    ResolvedSite(
+                        site: site.site,
+                        inference: site.inference,
+                        bindingIndex: bindingIndex,
+                        candidates: site.candidates
+                    )
+                )
+            }
+
+            return Self(
+                seed: seed,
+                sites: resolved
+            )
+        }
+    }
+
+    enum CandidateLimitError:
+        Error,
+        Sendable,
+        LocalizedError
+    {
+        case nonPositive(Int)
+
+        public var errorDescription: String? {
+            switch self {
+            case .nonPositive(let value):
+                return "Program optimization candidate limit must be positive; received \(value)."
+            }
+        }
+    }
+
+    struct CandidateLimit:
+        Sendable,
+        Codable,
+        Hashable
+    {
+        public let value: Int
+
+        private init(
+            _ value: Int
+        ) {
+            self.value = value
+        }
+
+        public static let standard = Self(
+            64
+        )
+
+        public static func parse(
+            _ value: Int
+        ) throws -> Self {
+            guard value > 0 else {
+                throw CandidateLimitError.nonPositive(
+                    value
+                )
+            }
+
+            return Self(
+                value
+            )
         }
     }
 
