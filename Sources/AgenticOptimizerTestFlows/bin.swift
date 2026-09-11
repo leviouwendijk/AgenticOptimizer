@@ -82,5 +82,19 @@ enum AgenticOptimizerFlowSuite: TestFlowRegistry {
             try await AgenticOptimizerFlowTesting
                 .runDemonstrationBootstrap()
         },
+        TestFlow(
+            "program-realization-optimization",
+            tags: [
+                "agentic-optimizer",
+                "program",
+                "optimization",
+                "realization",
+                "inference-sites",
+                "search",
+            ]
+        ) {
+            try await AgenticOptimizerFlowTesting
+                .runProgramRealizationOptimization()
+        },
     ]
 }

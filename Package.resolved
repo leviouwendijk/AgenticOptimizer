@@ -1,5 +1,5 @@
 {
-  "originHash" : "19ee3ed43006122ac7aa8c6a0f269e9e9b134888891aa03b1932f8ce03e332ea",
+  "originHash" : "187a8831a88a0b23991c8ae5502dff8aeee42bc673a19979b61457dbf787b415",
   "pins" : [
     {
       "identity" : "agentic",
@@ -17,6 +17,15 @@
       "state" : {
         "branch" : "master",
         "revision" : "892c5d3bb8e085fd8d6cd0ba79a97e6f97b35e3b"
+      }
+    },
+    {
+      "identity" : "agenticprograms",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/leviouwendijk/AgenticPrograms.git",
+      "state" : {
+        "branch" : "master",
+        "revision" : "26f1d9eb1fe65d92e660eb04f7bc6dc77be79c38"
       }
     },
     {

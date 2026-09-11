@@ -27,6 +27,10 @@ let package = Package(
             branch: "master"
         ),
         .package(
+            url: "https://github.com/leviouwendijk/AgenticPrograms.git",
+            branch: "master"
+        ),
+        .package(
             url: "https://github.com/leviouwendijk/Primitives.git",
             branch: "master"
         ),
@@ -52,6 +56,10 @@ let package = Package(
                     package: "AgenticInference"
                 ),
                 .product(
+                    name: "AgenticPrograms",
+                    package: "AgenticPrograms"
+                ),
+                .product(
                     name: "Primitives",
                     package: "Primitives"
                 ),
@@ -72,6 +80,10 @@ let package = Package(
                 .product(
                     name: "AgenticInference",
                     package: "AgenticInference"
+                ),
+                .product(
+                    name: "AgenticPrograms",
+                    package: "AgenticPrograms"
                 ),
                 .product(
                     name: "Primitives",
