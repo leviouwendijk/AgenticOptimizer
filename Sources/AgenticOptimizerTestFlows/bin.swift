@@ -125,5 +125,21 @@ enum AgenticOptimizerFlowSuite: TestFlowRegistry {
             try await AgenticOptimizerFlowTesting
                 .runOptimizationInputParsing()
         },
+        TestFlow(
+            "program-coordinate-optimization",
+            tags: [
+                "agentic-optimizer",
+                "program",
+                "optimization",
+                "coordinate",
+                "inference-sites",
+                "bounded",
+                "convergence",
+                "provenance",
+            ]
+        ) {
+            try await AgenticOptimizerFlowTesting
+                .runProgramCoordinateOptimization()
+        },
     ]
 }
