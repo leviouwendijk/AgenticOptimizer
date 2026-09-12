@@ -1,6 +1,6 @@
 import AgenticInference
 import Schema
-import SchemaMacros
+import Macros
 
 public struct AgentInferenceInstructionProposalExample:
     Sendable,

@@ -1,5 +1,5 @@
 {
-  "originHash" : "187a8831a88a0b23991c8ae5502dff8aeee42bc673a19979b61457dbf787b415",
+  "originHash" : "d4040c8bc41a320aecbab067c2cc07a80db2c0c369670cc9cfa00d8fb1c85603",
   "pins" : [
     {
       "identity" : "agentic",
@@ -16,7 +16,7 @@
       "location" : "https://github.com/leviouwendijk/AgenticInference.git",
       "state" : {
         "branch" : "master",
-        "revision" : "397f884a79b519c6766dc2461a754392986ea2df"
+        "revision" : "c8acd0b2815c26924d2ae23aa1d0b58ab8e9cc74"
       }
     },
     {
@@ -25,7 +25,7 @@
       "location" : "https://github.com/leviouwendijk/AgenticPrograms.git",
       "state" : {
         "branch" : "master",
-        "revision" : "f27d60a926569406f566ccd6525f94ee0a4a41eb"
+        "revision" : "433936c6d7e3c3e6352761a64bea4fe16ff3fd6f"
       }
     },
     {
@@ -83,6 +83,15 @@
       }
     },
     {
+      "identity" : "macros",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/leviouwendijk/Macros.git",
+      "state" : {
+        "branch" : "master",
+        "revision" : "44885d7ebddc4e9ced6f7cba0deac0ca98da20f1"
+      }
+    },
+    {
       "identity" : "primitives",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/leviouwendijk/Primitives.git",
@@ -98,15 +107,6 @@
       "state" : {
         "branch" : "master",
         "revision" : "703253bef3f4ae18e03bb35e68ac6db0d1bc584d"
-      }
-    },
-    {
-      "identity" : "schemamacros",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/leviouwendijk/SchemaMacros.git",
-      "state" : {
-        "branch" : "master",
-        "revision" : "2441b49a5159c375b094672a0ba0ae338829ec32"
       }
     },
     {
