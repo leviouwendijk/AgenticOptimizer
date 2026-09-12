@@ -17,6 +17,75 @@ public struct ProgramRealizationSearch<Program: AgentProgram>: Sendable {
     }
 
     public func optimize(
+        dataset: ProgramOptimization.Dataset<Program>,
+        seed: AgentProgramRealization<Program>,
+        sites: [ProgramOptimization.SiteCandidates],
+        maximumCandidates: Int = 64,
+        candidateIDPrefix: String = "combination"
+    ) async throws -> ProgramOptimization.Report<Program> {
+        let searchSpace = try ProgramOptimization.SearchSpace<Program>
+            .parse(
+                seed: seed,
+                sites: sites
+            )
+        let limit = try ProgramOptimization.CandidateLimit.parse(
+            maximumCandidates
+        )
+
+        return try await optimize(
+            dataset: dataset,
+            searchSpace: searchSpace,
+            limit: limit,
+            candidateIDPrefix: candidateIDPrefix
+        )
+    }
+
+    public func optimize(
+        dataset: ProgramOptimization.Dataset<Program>,
+        searchSpace: ProgramOptimization.SearchSpace<Program>,
+        limit: ProgramOptimization.CandidateLimit = .standard,
+        candidateIDPrefix: String = "combination"
+    ) async throws -> ProgramOptimization.Report<Program> {
+        let generator = ProgramRealizationCandidateGenerator(
+            limit: limit,
+            candidateIDPrefix: candidateIDPrefix
+        )
+        let generated = generator.generate(
+            from: searchSpace
+        )
+
+        return try await optimize(
+            dataset: dataset,
+            candidates: generated
+        )
+    }
+
+    public func optimize(
+        dataset: ProgramOptimization.Dataset<Program>,
+        candidates: [ProgramOptimization.Candidate<Program>]
+    ) async throws -> ProgramOptimization.Report<Program> {
+        let optimization = try await optimize(
+            problem: ProgramOptimization.Problem(
+                examples: dataset.training,
+                candidates: try ProgramOptimization
+                    .Candidates<Program>
+                    .parse(
+                        candidates
+                    )
+            )
+        )
+        let evaluation = try await evaluate(
+            candidate: optimization.selected,
+            examples: dataset.evaluation
+        )
+
+        return ProgramOptimization.Report(
+            optimization: optimization,
+            evaluation: evaluation
+        )
+    }
+
+    public func optimize(
         examples: [ProgramOptimization.Example<Program>],
         seed: AgentProgramRealization<Program>,
         sites: [ProgramOptimization.SiteCandidates],
@@ -95,66 +164,35 @@ public struct ProgramRealizationSearch<Program: AgentProgram>: Sendable {
         var selected = problem.candidates.initial
         var selectedMean: AgentInferenceOptimizationScore?
 
-        let exampleCount = Double(
-            problem.examples.count
-        )
-
         for candidate in problem.candidates {
-            let firstTrialIndex = trials.count
-            var meanValue = 0.0
-
-            for (exampleIndex, example) in problem.examples.enumerated() {
-                let inferenceInvoker = AgentProgramInferenceInvoker(
-                    realization: candidate.realization,
-                    executor: inferenceExecutor
-                )
-                let context = AgentProgramContext(
-                    inference: inferenceInvoker
-                )
-                let output = try await program.run(
-                    example.input,
-                    in: context
-                )
-                let score = try await objective.score(
-                    Program.self,
-                    example: example,
-                    output: output
-                )
-
-                meanValue += score.value / exampleCount
-
-                trials.append(
-                    ProgramOptimization.Trial(
-                        candidate: candidate.id,
-                        exampleIndex: exampleIndex,
-                        score: score
-                    )
-                )
-            }
-
-            let mean = try AgentInferenceOptimizationScore(
-                value: meanValue
+            let evaluation = try await evaluate(
+                candidate: candidate,
+                examples: problem.examples
             )
-            let trialIndexes = Array(
-                firstTrialIndex..<trials.count
+            let firstTrialIndex = trials.count
+
+            trials.append(
+                contentsOf: evaluation.trials
             )
 
             candidateResults.append(
                 ProgramOptimization.CandidateResult(
                     candidate: candidate,
-                    mean: mean,
-                    trialIndexes: trialIndexes
+                    mean: evaluation.mean,
+                    trialIndexes: Array(
+                        firstTrialIndex..<trials.count
+                    )
                 )
             )
 
             if let currentSelectedMean = selectedMean {
-                if mean.value > currentSelectedMean.value {
+                if evaluation.mean.value > currentSelectedMean.value {
                     selected = candidate
-                    selectedMean = mean
+                    selectedMean = evaluation.mean
                 }
             } else {
                 selected = candidate
-                selectedMean = mean
+                selectedMean = evaluation.mean
             }
         }
 
@@ -162,6 +200,54 @@ public struct ProgramRealizationSearch<Program: AgentProgram>: Sendable {
             objective: objective.id,
             selected: selected,
             candidates: candidateResults,
+            trials: trials
+        )
+    }
+
+    public func evaluate(
+        candidate: ProgramOptimization.Candidate<Program>,
+        examples: ProgramOptimization.Examples<Program>
+    ) async throws -> ProgramOptimization.Evaluation<Program> {
+        var trials: [ProgramOptimization.Trial] = []
+        var meanValue = 0.0
+        let exampleCount = Double(
+            examples.count
+        )
+
+        for (exampleIndex, example) in examples.enumerated() {
+            let inferenceInvoker = AgentProgramInferenceInvoker(
+                realization: candidate.realization,
+                executor: inferenceExecutor
+            )
+            let context = AgentProgramContext(
+                inference: inferenceInvoker
+            )
+            let output = try await program.run(
+                example.input,
+                in: context
+            )
+            let score = try await objective.score(
+                Program.self,
+                example: example,
+                output: output
+            )
+
+            meanValue += score.value / exampleCount
+
+            trials.append(
+                ProgramOptimization.Trial(
+                    candidate: candidate.id,
+                    exampleIndex: exampleIndex,
+                    score: score
+                )
+            )
+        }
+
+        return ProgramOptimization.Evaluation(
+            candidate: candidate,
+            mean: try AgentInferenceOptimizationScore(
+                value: meanValue
+            ),
             trials: trials
         )
     }

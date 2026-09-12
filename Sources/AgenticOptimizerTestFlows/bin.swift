@@ -141,5 +141,21 @@ enum AgenticOptimizerFlowSuite: TestFlowRegistry {
             try await AgenticOptimizerFlowTesting
                 .runProgramCoordinateOptimization()
         },
+        TestFlow(
+            "optimization-held-out-evaluation",
+            tags: [
+                "agentic-optimizer",
+                "optimization",
+                "training",
+                "evaluation",
+                "held-out",
+                "inference",
+                "program",
+                "coordinate",
+            ]
+        ) {
+            try await AgenticOptimizerFlowTesting
+                .runHeldOutEvaluation()
+        },
     ]
 }

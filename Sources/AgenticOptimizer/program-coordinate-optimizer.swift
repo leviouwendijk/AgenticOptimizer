@@ -21,6 +21,39 @@ public struct ProgramCoordinateOptimizer<Program: AgentProgram>:
     }
 
     public func optimize(
+        dataset: ProgramOptimization.Dataset<Program>,
+        seed: AgentProgramRealization<Program>,
+        sites: [ProgramOptimization.SiteCandidates],
+        maximumPasses: Int = 4
+    ) async throws -> ProgramOptimization.CoordinateReport<Program> {
+        let searchSpace = try ProgramOptimization
+            .SearchSpace<Program>
+            .parse(
+                seed: seed,
+                sites: sites
+            )
+        let passLimit = try ProgramOptimization
+            .CoordinatePassLimit
+            .parse(
+                maximumPasses
+            )
+        let optimization = try await optimize(
+            examples: dataset.training,
+            searchSpace: searchSpace,
+            passLimit: passLimit
+        )
+        let evaluation = try await search.evaluate(
+            candidate: optimization.selected,
+            examples: dataset.evaluation
+        )
+
+        return ProgramOptimization.CoordinateReport(
+            optimization: optimization,
+            evaluation: evaluation
+        )
+    }
+
+    public func optimize(
         examples: [ProgramOptimization.Example<Program>],
         seed: AgentProgramRealization<Program>,
         sites: [ProgramOptimization.SiteCandidates],
