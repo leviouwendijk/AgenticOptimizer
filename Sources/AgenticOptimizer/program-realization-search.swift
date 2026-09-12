@@ -213,19 +213,38 @@ public struct ProgramRealizationSearch<Program: AgentProgram>: Sendable {
         let exampleCount = Double(
             examples.count
         )
+        let clock = ContinuousClock()
 
         for (exampleIndex, example) in examples.enumerated() {
+            let recorder = ProgramOptimizationExecutionRecorder()
+            let recordingExecutor =
+                ProgramOptimizationRecordingInferenceExecutor(
+                    base: inferenceExecutor,
+                    recorder: recorder
+                )
             let inferenceInvoker = AgentProgramInferenceInvoker(
                 realization: candidate.realization,
-                executor: inferenceExecutor
+                executor: recordingExecutor
             )
             let context = AgentProgramContext(
                 inference: inferenceInvoker
             )
+            let startedAt = clock.now
             let output = try await program.run(
                 example.input,
                 in: context
             )
+            let duration = startedAt.duration(
+                to: clock.now
+            )
+            let durationSeconds =
+                max(
+                    0,
+                    Double(duration.components.seconds)
+                        + Double(duration.components.attoseconds)
+                            / 1_000_000_000_000_000_000
+                )
+            let executions = await recorder.snapshot()
             let score = try await objective.score(
                 Program.self,
                 example: example,
@@ -238,7 +257,9 @@ public struct ProgramRealizationSearch<Program: AgentProgram>: Sendable {
                 ProgramOptimization.Trial(
                     candidate: candidate.id,
                     exampleIndex: exampleIndex,
-                    score: score
+                    score: score,
+                    executions: executions,
+                    durationSeconds: durationSeconds
                 )
             )
         }

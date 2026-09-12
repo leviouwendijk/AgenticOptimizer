@@ -498,15 +498,21 @@ public extension ProgramOptimization {
         public var candidate: CandidateID
         public var exampleIndex: Int
         public var score: AgentInferenceOptimizationScore
+        public var executions: [AgentInferenceExecutionRecord]
+        public var durationSeconds: Double
 
         public init(
             candidate: CandidateID,
             exampleIndex: Int,
-            score: AgentInferenceOptimizationScore
+            score: AgentInferenceOptimizationScore,
+            executions: [AgentInferenceExecutionRecord] = [],
+            durationSeconds: Double = 0
         ) {
             self.candidate = candidate
             self.exampleIndex = exampleIndex
             self.score = score
+            self.executions = executions
+            self.durationSeconds = durationSeconds
         }
     }
 

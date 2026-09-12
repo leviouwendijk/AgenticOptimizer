@@ -174,13 +174,25 @@ public struct AgentInferenceRealizationSearch: Sendable {
         let exampleCount = Double(
             examples.count
         )
+        let clock = ContinuousClock()
 
         for (exampleIndex, example) in examples.enumerated() {
+            let startedAt = clock.now
             let execution = try await executor.execute(
                 inference,
                 input: example.input,
                 realization: candidate.realization
             )
+            let duration = startedAt.duration(
+                to: clock.now
+            )
+            let durationSeconds =
+                max(
+                    0,
+                    Double(duration.components.seconds)
+                        + Double(duration.components.attoseconds)
+                            / 1_000_000_000_000_000_000
+                )
             let score = try await objective.score(
                 inference,
                 example: example,
@@ -194,7 +206,8 @@ public struct AgentInferenceRealizationSearch: Sendable {
                     candidate: candidate.identifier,
                     exampleIndex: exampleIndex,
                     score: score,
-                    execution: execution.record
+                    execution: execution.record,
+                    durationSeconds: durationSeconds
                 )
             )
         }

@@ -157,5 +157,22 @@ enum AgenticOptimizerFlowSuite: TestFlowRegistry {
             try await AgenticOptimizerFlowTesting
                 .runHeldOutEvaluation()
         },
+        TestFlow(
+            "multi-objective-optimization",
+            tags: [
+                "agentic-optimizer",
+                "optimization",
+                "multi-objective",
+                "quality",
+                "tokens",
+                "cost",
+                "latency",
+                "inference",
+                "program",
+            ]
+        ) {
+            try await AgenticOptimizerFlowTesting
+                .runMultiObjectiveOptimization()
+        },
     ]
 }

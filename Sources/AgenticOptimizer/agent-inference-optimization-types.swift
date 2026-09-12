@@ -369,17 +369,20 @@ public struct AgentInferenceOptimizationTrial:
     public var exampleIndex: Int
     public var score: AgentInferenceOptimizationScore
     public var execution: AgentInferenceExecutionRecord
+    public var durationSeconds: Double
 
     public init(
         candidate: AgentInferenceRealizationCandidateIdentifier,
         exampleIndex: Int,
         score: AgentInferenceOptimizationScore,
-        execution: AgentInferenceExecutionRecord
+        execution: AgentInferenceExecutionRecord,
+        durationSeconds: Double = 0
     ) {
         self.candidate = candidate
         self.exampleIndex = exampleIndex
         self.score = score
         self.execution = execution
+        self.durationSeconds = durationSeconds
     }
 }
 
