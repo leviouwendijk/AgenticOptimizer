@@ -174,5 +174,21 @@ enum AgenticOptimizerFlowSuite: TestFlowRegistry {
             try await AgenticOptimizerFlowTesting
                 .runMultiObjectiveOptimization()
         },
+        TestFlow(
+            "program-optimization-compiler",
+            tags: [
+                "agentic-optimizer",
+                "program",
+                "optimization",
+                "compiler",
+                "candidate-generation",
+                "coordinate",
+                "held-out",
+                "provenance",
+            ]
+        ) {
+            try await AgenticOptimizerFlowTesting
+                .runProgramOptimizationCompiler()
+        },
     ]
 }
