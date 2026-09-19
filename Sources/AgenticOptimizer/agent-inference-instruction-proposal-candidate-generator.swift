@@ -130,17 +130,18 @@ public struct InferenceInstructionProposalCandidateGenerator:
             )
         }
 
-        let proposalExecution = try await proposer.execute(
-            Standard.Inferences.ProposeInferenceInstructions.self,
-            input: Standard.Inferences.ProposeInferenceInstructions.Input(
-                inferenceIdentifier: inference.definition.identifier.rawValue,
-                inferencePurpose: inference.definition.purpose,
-                seedInstructions: seed.instructions,
-                examples: proposalExamples,
-                requestedProposalCount: maximumProposals
-            ),
-            realization: proposalRealization
-        )
+        let proposalExecution = try await Standard.Inferences
+            .ProposeInferenceInstructions.execute(
+                using: proposer,
+                input: Standard.Inferences.ProposeInferenceInstructions.Input(
+                    inferenceIdentifier: inference.definition.identifier.rawValue,
+                    inferencePurpose: inference.definition.purpose,
+                    seedInstructions: seed.instructions,
+                    examples: proposalExamples,
+                    requestedProposalCount: maximumProposals
+                ),
+                realization: proposalRealization
+            )
         let proposals = try parse(
             proposalExecution.output.proposals,
             seedInstructions: seed.instructions

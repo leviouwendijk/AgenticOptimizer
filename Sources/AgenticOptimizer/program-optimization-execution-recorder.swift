@@ -24,17 +24,11 @@ struct ProgramOptimizationRecordingInferenceExecutor:
     let base: any InferenceExecuting
     let recorder: ProgramOptimizationExecutionRecorder
 
-    func execute<InferenceType: Inference>(
-        _ inference: InferenceType.Type,
-        input: InferenceType.Input,
-        realization: InferenceRealizationConfiguration,
-        context: InferenceExecutionContext
-    ) async throws -> InferenceExecutionResult<InferenceType.Output> {
-        _ = context
+    func execute(
+        _ invocation: InferenceInvocation
+    ) async throws -> InferenceInvocationResult {
         let result = try await base.execute(
-            inference,
-            input: input,
-            realization: realization
+            invocation
         )
 
         await recorder.record(

@@ -169,8 +169,8 @@ public struct InferenceDemonstrationBootstrapGenerator:
         var trials: [InferenceDemonstrationBootstrapTrial] = []
 
         for (exampleIndex, example) in examples.enumerated() {
-            let execution = try await executor.execute(
-                inference,
+            let execution = try await InferenceType.execute(
+                using: executor,
                 input: example.input,
                 realization: teacher
             )

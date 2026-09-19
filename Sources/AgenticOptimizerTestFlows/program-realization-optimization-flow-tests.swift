@@ -95,13 +95,11 @@ private struct ProgramOptimizationFixtureExecutor:
 {
     let recorder: ProgramExecutionRecorder
 
-    func execute<InferenceType: Inference>(
-        _ inference: InferenceType.Type,
-        input: InferenceType.Input,
-        realization: InferenceRealizationConfiguration,
-        context: InferenceExecutionContext
-    ) async throws -> InferenceExecutionResult<InferenceType.Output> {
-        _ = context
+    func execute(
+        _ invocation: InferenceInvocation
+    ) async throws -> InferenceInvocationResult {
+        let inference = invocation
+        let realization = invocation.realization
         await recorder.append(
             ProgramExecutionObservation(
                 inference: inference.definition.identifier,
@@ -109,9 +107,7 @@ private struct ProgramOptimizationFixtureExecutor:
             )
         )
 
-        let inputData = try JSONEncoder().encode(
-            input
-        )
+        let inputData = invocation.input
         let inputText = try JSONDecoder().decode(
             String.self,
             from: inputData
@@ -136,13 +132,8 @@ private struct ProgramOptimizationFixtureExecutor:
         let outputData = try JSONEncoder().encode(
             outputText
         )
-        let output = try JSONDecoder().decode(
-            InferenceType.Output.self,
-            from: outputData
-        )
-
-        return InferenceExecutionResult(
-            output: output,
+        return InferenceInvocationResult(
+            output: outputData,
             record: InferenceExecutionRecord(
                 inference: inference.definition.identifier,
                 strategy: realization.strategy,

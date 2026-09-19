@@ -7,7 +7,7 @@
       "location" : "https://github.com/leviouwendijk/Agentic.git",
       "state" : {
         "branch" : "master",
-        "revision" : "d1c947542c7de4e7701155912cb2309c09fdb379"
+        "revision" : "68b609e7d80556d6325f344a34b00319a1d0a994"
       }
     },
     {
@@ -16,7 +16,7 @@
       "location" : "https://github.com/leviouwendijk/AgenticInference.git",
       "state" : {
         "branch" : "master",
-        "revision" : "e4d6d57e2a7040cd1b5155d2969774e2c4a708ad"
+        "revision" : "5f141c2b4a08e68ad214a89ffd7cc5afef5d12c8"
       }
     },
     {
@@ -25,7 +25,7 @@
       "location" : "https://github.com/leviouwendijk/AgenticPrograms.git",
       "state" : {
         "branch" : "master",
-        "revision" : "b3dbd7516b7de05cac52586da6b6e3ca89afe067"
+        "revision" : "54223fc8cc639ae63a4d54e57035b70d7d142229"
       }
     },
     {
@@ -133,7 +133,7 @@
       "location" : "https://github.com/leviouwendijk/Macros.git",
       "state" : {
         "branch" : "master",
-        "revision" : "9dd88dfef8807a06d5aebca897c272a624d0b4aa"
+        "revision" : "581226ca30433e5adbe4244cf48cbe559a1aba88"
       }
     },
     {

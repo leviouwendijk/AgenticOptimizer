@@ -179,8 +179,8 @@ public struct InferenceRealizationSearch: Sendable {
 
         for (exampleIndex, example) in examples.enumerated() {
             let startedAt = clock.now
-            let execution = try await executor.execute(
-                inference,
+            let execution = try await InferenceType.execute(
+                using: executor,
                 input: example.input,
                 realization: candidate.realization
             )

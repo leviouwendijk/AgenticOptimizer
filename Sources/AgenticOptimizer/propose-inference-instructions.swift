@@ -3,9 +3,9 @@ import AgenticInference
 import Schema
 import Macros
 
+@JSONSchema
 public struct InferenceInstructionProposalExample:
-    Sendable,
-    Codable,
+    Product,
     Hashable
 {
     public var inputJSON: String
@@ -25,8 +25,7 @@ public struct InferenceInstructionProposalExample:
 
 @JSONSchema
 public struct InferenceInstructionProposal:
-    Sendable,
-    Codable,
+    Product,
     Hashable
 {
     /// Complete instructions that can replace the seed realization instructions.
@@ -44,28 +43,12 @@ public struct InferenceInstructionProposal:
     }
 }
 
-@JSONSchema
-public struct InferenceInstructionProposalSet:
-    Sendable,
-    Codable,
-    Hashable
-{
-    /// Distinct instruction alternatives worth evaluating against the supplied examples.
-    public var proposals: [InferenceInstructionProposal]
-
-    public init(
-        proposals: [InferenceInstructionProposal]
-    ) {
-        self.proposals = proposals
-    }
-}
-
 extension Standard.Inferences {
     @Inference
     public struct ProposeInferenceInstructions {
+        @JSONSchema
         public struct Input:
-            Sendable,
-            Codable,
+            Source,
             Hashable
         {
             public var inferenceIdentifier: String
@@ -89,7 +72,20 @@ extension Standard.Inferences {
             }
         }
 
-        public typealias Output = InferenceInstructionProposalSet
+        @JSONSchema
+        public struct Output:
+            Result,
+            Hashable
+        {
+            /// Distinct instruction alternatives worth evaluating against the supplied examples.
+            public var proposals: [InferenceInstructionProposal]
+
+            public init(
+                proposals: [InferenceInstructionProposal]
+            ) {
+                self.proposals = proposals
+            }
+        }
 
         public static let purpose =
             "Propose distinct complete instruction variants for a semantic inference so an optimizer can evaluate them against typed examples."

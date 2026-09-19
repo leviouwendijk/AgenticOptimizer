@@ -72,16 +72,12 @@ private struct CombinationFixtureExecutor:
     InferenceExecuting,
     Sendable
 {
-    func execute<InferenceType: Inference>(
-        _ inference: InferenceType.Type,
-        input: InferenceType.Input,
-        realization: InferenceRealizationConfiguration,
-        context: InferenceExecutionContext
-    ) async throws -> InferenceExecutionResult<InferenceType.Output> {
-        _ = context
-        let inputData = try JSONEncoder().encode(
-            input
-        )
+    func execute(
+        _ invocation: InferenceInvocation
+    ) async throws -> InferenceInvocationResult {
+        let inference = invocation
+        let realization = invocation.realization
+        let inputData = invocation.input
         let inputText = try JSONDecoder().decode(
             String.self,
             from: inputData
@@ -108,13 +104,8 @@ private struct CombinationFixtureExecutor:
         let outputData = try JSONEncoder().encode(
             outputText
         )
-        let output = try JSONDecoder().decode(
-            InferenceType.Output.self,
-            from: outputData
-        )
-
-        return InferenceExecutionResult(
-            output: output,
+        return InferenceInvocationResult(
+            output: outputData,
             record: InferenceExecutionRecord(
                 inference: inference.definition.identifier,
                 strategy: realization.strategy,
