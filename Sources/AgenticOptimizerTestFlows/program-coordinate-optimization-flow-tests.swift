@@ -1,52 +1,68 @@
+import Agentic
 import AgenticInference
 import AgenticOptimizer
 import AgenticPrograms
 import Foundation
 import TestFlows
 
-private struct CoordinatePrepareInference: AgentInference {
+private struct CoordinatePrepareInference: Inference {
     typealias Input = String
     typealias Output = String
 
-    static let definition = AgentInferenceDefinition(
+    static let definition = InferenceDefinition(
         identifier: "fixture.coordinate_prepare",
         purpose: "Prepare a value during coordinate optimization."
     )
 }
 
-private struct CoordinateFinalizeInference: AgentInference {
+private struct CoordinateFinalizeInference: Inference {
     typealias Input = String
     typealias Output = String
 
-    static let definition = AgentInferenceDefinition(
+    static let definition = InferenceDefinition(
         identifier: "fixture.coordinate_finalize",
         purpose: "Finalize a value during coordinate optimization."
     )
 }
 
-private struct CoordinateFixtureProgram: AgentProgram {
+private struct CoordinateFixtureProgram: Program {
     typealias Input = String
     typealias Output = String
 
-    static let descriptor = AgentProgramDescriptor(
+    static let definition = ProgramDefinition(
         identifier: "fixture.coordinate_program",
-        title: "Coordinate Optimization Fixture",
-        summary: "Two-stage program whose sites improve sequentially under whole-program scoring."
+        purpose: "Two-stage program whose sites improve sequentially under whole-program scoring."
+    )
+
+    static let prepare = InferenceSite<
+        Self,
+        CoordinatePrepareInference
+    >(
+        identifier: .init(
+            rawValue: "prepare"
+        )
+    )
+
+    static let finalize = InferenceSite<
+        Self,
+        CoordinateFinalizeInference
+    >(
+        identifier: .init(
+            rawValue: "finalize"
+        )
     )
 
     func run(
         _ input: String,
-        in context: AgentProgramContext
+        in context: ProgramContext
     ) async throws -> String {
         let prepared = try await context.infer(
-            CoordinatePrepareInference.self,
-            at: "prepare",
+            Self.prepare,
             input: input
         )
 
         return try await context.infer(
-            CoordinateFinalizeInference.self,
-            at: "finalize",
+            Self.finalize,
             input: prepared
         )
     }
@@ -55,13 +71,13 @@ private struct CoordinateFixtureProgram: AgentProgram {
 private actor CoordinateExecutionRecorder {
     private var observations: [
         (
-            inference: AgentInferenceIdentifier,
+            inference: InferenceIdentifier,
             instructions: String
         )
     ] = []
 
     func record(
-        inference: AgentInferenceIdentifier,
+        inference: InferenceIdentifier,
         instructions: String
     ) {
         observations.append(
@@ -74,7 +90,7 @@ private actor CoordinateExecutionRecorder {
 
     func snapshot() -> [
         (
-            inference: AgentInferenceIdentifier,
+            inference: InferenceIdentifier,
             instructions: String
         )
     ] {
@@ -83,16 +99,18 @@ private actor CoordinateExecutionRecorder {
 }
 
 private struct CoordinateFixtureExecutor:
-    AgentInferenceExecuting,
+    InferenceExecuting,
     Sendable
 {
     let recorder: CoordinateExecutionRecorder
 
-    func execute<Inference: AgentInference>(
-        _ inference: Inference.Type,
-        input: Inference.Input,
-        realization: AgentInferenceRealization
-    ) async throws -> AgentInferenceExecutionResult<Inference.Output> {
+    func execute<InferenceType: Inference>(
+        _ inference: InferenceType.Type,
+        input: InferenceType.Input,
+        realization: InferenceRealizationConfiguration,
+        context: InferenceExecutionContext
+    ) async throws -> InferenceExecutionResult<InferenceType.Output> {
+        _ = context
         let inputData = try JSONEncoder().encode(
             input
         )
@@ -128,13 +146,13 @@ private struct CoordinateFixtureExecutor:
             outputText
         )
         let output = try JSONDecoder().decode(
-            Inference.Output.self,
+            InferenceType.Output.self,
             from: outputData
         )
 
-        return AgentInferenceExecutionResult(
+        return InferenceExecutionResult(
             output: output,
-            record: AgentInferenceExecutionRecord(
+            record: InferenceExecutionRecord(
                 inference: inference.definition.identifier,
                 strategy: realization.strategy,
                 budget: realization.budget,
@@ -151,11 +169,11 @@ private struct CoordinateProgressObjective:
     let id: ProgramOptimization.ObjectiveID =
         "coordinate_progress"
 
-    func score<Program: AgentProgram>(
-        _ program: Program.Type,
-        example: ProgramOptimization.Example<Program>,
-        output: Program.Output
-    ) async throws -> AgentInferenceOptimizationScore {
+    func score<ProgramType: Program>(
+        _ program: ProgramType.Type,
+        example: ProgramOptimization.Example<ProgramType>,
+        output: ProgramType.Output
+    ) async throws -> InferenceOptimizationScore {
         let expectedData = try JSONEncoder().encode(
             example.expectedOutput
         )
@@ -186,7 +204,7 @@ private struct CoordinateProgressObjective:
             value = 0.0
         }
 
-        return try AgentInferenceOptimizationScore(
+        return try InferenceOptimizationScore(
             value: value,
             metadata: [
                 "expected": expected,
@@ -203,7 +221,7 @@ private enum CoordinateFixtureError:
     case unknownInstructions(String)
 }
 
-extension AgenticOptimizerFlowTesting {
+extension OptimizerFlowTesting {
     static func runProgramCoordinateOptimization()
         async throws
         -> [TestFlowDiagnostic]
@@ -221,57 +239,53 @@ extension AgenticOptimizerFlowTesting {
             ),
         ]
 
-        let identity = AgentInferenceRealization(
+        let identity = InferenceRealizationConfiguration(
             strategy: .direct,
-            modelSelection: .executor,
             instructions: "identity",
             budget: .singleAttempt
         )
-        let uppercase = AgentInferenceRealization(
+        let uppercase = InferenceRealizationConfiguration(
             strategy: .direct,
-            modelSelection: .executor,
             instructions: "uppercase",
             budget: .singleAttempt
         )
-        let exclaim = AgentInferenceRealization(
+        let exclaim = InferenceRealizationConfiguration(
             strategy: .direct,
-            modelSelection: .executor,
             instructions: "exclaim",
             budget: .singleAttempt
         )
 
-        let seed = AgentProgramRealization<CoordinateFixtureProgram>(
-            id: "fixture.coordinate_seed",
-            inferences: try AgentProgramInferenceBindings(
-                [
-                    AgentInferenceRealizationBinding(
-                        site: "prepare",
-                        inference: CoordinatePrepareInference.definition.identifier,
-                        realization: identity
-                    ),
-                    AgentInferenceRealizationBinding(
-                        site: "finalize",
-                        inference: CoordinateFinalizeInference.definition.identifier,
-                        realization: identity
-                    ),
-                ]
-            ),
-            metadata: [
-                "seed_marker": "preserved",
+        let seed = try ProgramRealization<CoordinateFixtureProgram>(
+            bindings: [
+                .init(
+                    CoordinateFixtureProgram.prepare,
+                    realization: fixtureInferenceRealization(
+                        CoordinatePrepareInference.self,
+                        identifier: "prepare.identity",
+                        configuration: identity
+                    )
+                ),
+                .init(
+                    CoordinateFixtureProgram.finalize,
+                    realization: fixtureInferenceRealization(
+                        CoordinateFinalizeInference.self,
+                        identifier: "finalize.identity",
+                        configuration: identity
+                    )
+                )
             ]
         )
 
-        let sites: [ProgramOptimization.SiteCandidates] = [
+        let sites: [ProgramOptimization.SiteCandidates<CoordinateFixtureProgram>] = [
             .init(
-                site: "prepare",
-                inference: CoordinatePrepareInference.definition.identifier,
+                CoordinateFixtureProgram.prepare,
                 candidates: [
-                    AgentInferenceRealizationCandidate(
+                    InferenceRealizationCandidate(
                         identifier: "prepare_identity",
                         realization: identity,
                         source: .seed
                     ),
-                    AgentInferenceRealizationCandidate(
+                    InferenceRealizationCandidate(
                         identifier: "prepare_uppercase",
                         realization: uppercase,
                         source: .instruction_variant,
@@ -282,15 +296,14 @@ extension AgenticOptimizerFlowTesting {
                 ]
             ),
             .init(
-                site: "finalize",
-                inference: CoordinateFinalizeInference.definition.identifier,
+                CoordinateFixtureProgram.finalize,
                 candidates: [
-                    AgentInferenceRealizationCandidate(
+                    InferenceRealizationCandidate(
                         identifier: "finalize_identity",
                         realization: identity,
                         source: .seed
                     ),
-                    AgentInferenceRealizationCandidate(
+                    InferenceRealizationCandidate(
                         identifier: "finalize_exclaim",
                         realization: exclaim,
                         source: .demonstration_variant,
@@ -394,13 +407,6 @@ extension AgenticOptimizerFlowTesting {
             ],
             "prepare_coordinate",
             "coordinate optimization preserves inference candidate metadata provenance"
-        )
-        try Expect.equal(
-            result.selected.realization.metadata[
-                "seed_marker"
-            ],
-            "preserved",
-            "coordinate optimization preserves seed program realization metadata"
         )
         try Expect.equal(
             result.trials.count,

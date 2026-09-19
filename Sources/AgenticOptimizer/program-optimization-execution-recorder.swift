@@ -1,33 +1,36 @@
+import Agentic
 import AgenticInference
 
 actor ProgramOptimizationExecutionRecorder {
-    private var records: [AgentInferenceExecutionRecord] = []
+    private var records: [InferenceExecutionRecord] = []
 
     func record(
-        _ record: AgentInferenceExecutionRecord
+        _ record: InferenceExecutionRecord
     ) {
         records.append(
             record
         )
     }
 
-    func snapshot() -> [AgentInferenceExecutionRecord] {
+    func snapshot() -> [InferenceExecutionRecord] {
         records
     }
 }
 
 struct ProgramOptimizationRecordingInferenceExecutor:
-    AgentInferenceExecuting,
+    InferenceExecuting,
     Sendable
 {
-    let base: any AgentInferenceExecuting
+    let base: any InferenceExecuting
     let recorder: ProgramOptimizationExecutionRecorder
 
-    func execute<Inference: AgentInference>(
-        _ inference: Inference.Type,
-        input: Inference.Input,
-        realization: AgentInferenceRealization
-    ) async throws -> AgentInferenceExecutionResult<Inference.Output> {
+    func execute<InferenceType: Inference>(
+        _ inference: InferenceType.Type,
+        input: InferenceType.Input,
+        realization: InferenceRealizationConfiguration,
+        context: InferenceExecutionContext
+    ) async throws -> InferenceExecutionResult<InferenceType.Output> {
+        _ = context
         let result = try await base.execute(
             inference,
             input: input,

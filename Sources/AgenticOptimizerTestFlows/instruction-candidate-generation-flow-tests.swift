@@ -1,27 +1,30 @@
+import Agentic
 import AgenticInference
 import AgenticOptimizer
 import Foundation
 import TestFlows
 
-private struct GeneratedCandidateFixtureInference: AgentInference {
+private struct GeneratedCandidateFixtureInference: Inference {
     typealias Input = String
     typealias Output = String
 
-    static let definition = AgentInferenceDefinition(
+    static let definition = InferenceDefinition(
         identifier: "fixture.generated_candidate_search",
         purpose: "Prove generated realization candidates compose with optimization search."
     )
 }
 
 private struct GeneratedCandidateFixtureExecutor:
-    AgentInferenceExecuting,
+    InferenceExecuting,
     Sendable
 {
-    func execute<Inference: AgentInference>(
-        _ inference: Inference.Type,
-        input: Inference.Input,
-        realization: AgentInferenceRealization
-    ) async throws -> AgentInferenceExecutionResult<Inference.Output> {
+    func execute<InferenceType: Inference>(
+        _ inference: InferenceType.Type,
+        input: InferenceType.Input,
+        realization: InferenceRealizationConfiguration,
+        context: InferenceExecutionContext
+    ) async throws -> InferenceExecutionResult<InferenceType.Output> {
+        _ = context
         let inputData = try JSONEncoder().encode(
             input
         )
@@ -53,13 +56,13 @@ private struct GeneratedCandidateFixtureExecutor:
             outputText
         )
         let output = try JSONDecoder().decode(
-            Inference.Output.self,
+            InferenceType.Output.self,
             from: outputData
         )
 
-        return AgentInferenceExecutionResult(
+        return InferenceExecutionResult(
             output: output,
-            record: AgentInferenceExecutionRecord(
+            record: InferenceExecutionRecord(
                 inference: inference.definition.identifier,
                 strategy: realization.strategy,
                 budget: realization.budget,
@@ -70,17 +73,17 @@ private struct GeneratedCandidateFixtureExecutor:
 }
 
 private struct GeneratedCandidateExactObjective:
-    AgentInferenceOptimizationObjective,
+    InferenceOptimizationObjective,
     Sendable
 {
-    let identifier: AgentInferenceOptimizationObjectiveIdentifier =
+    let identifier: InferenceOptimizationObjectiveIdentifier =
         "generated_exact_output"
 
-    func score<Inference: AgentInference>(
-        _ inference: Inference.Type,
-        example: AgentInferenceOptimizationExample<Inference>,
-        result: AgentInferenceExecutionResult<Inference.Output>
-    ) async throws -> AgentInferenceOptimizationScore {
+    func score<InferenceType: Inference>(
+        _ inference: InferenceType.Type,
+        example: InferenceOptimizationExample<InferenceType>,
+        result: InferenceExecutionResult<InferenceType.Output>
+    ) async throws -> InferenceOptimizationScore {
         let expectedData = try JSONEncoder().encode(
             example.expectedOutput
         )
@@ -97,7 +100,7 @@ private struct GeneratedCandidateExactObjective:
             from: actualData
         )
 
-        return try AgentInferenceOptimizationScore(
+        return try InferenceOptimizationScore(
             value: expected == actual ? 1.0 : 0.0
         )
     }
@@ -110,13 +113,13 @@ private enum GeneratedCandidateFixtureError:
     case unknownInstructions(String)
 }
 
-extension AgenticOptimizerFlowTesting {
+extension OptimizerFlowTesting {
     static func runInstructionCandidateGeneration()
         async throws
         -> [TestFlowDiagnostic]
     {
         let examples: [
-            AgentInferenceOptimizationExample<GeneratedCandidateFixtureInference>
+            InferenceOptimizationExample<GeneratedCandidateFixtureInference>
         ] = [
             .init(
                 input: "alpha",
@@ -128,16 +131,15 @@ extension AgenticOptimizerFlowTesting {
             ),
         ]
 
-        let seed = AgentInferenceRealization(
+        let seed = InferenceRealizationConfiguration(
             strategy: .direct,
-            modelSelection: .executor,
             instructions: "identity",
             budget: .singleAttempt,
             metadata: [
                 "seed_marker": "preserved",
             ]
         )
-        let generator = try AgentInferenceInstructionVariantGenerator.parse(
+        let generator = try InferenceInstructionVariantGenerator.parse(
             variants: [
                 .init(
                     identifier: "constant",
@@ -171,7 +173,7 @@ extension AgenticOptimizerFlowTesting {
         )
         try Expect.equal(
             generated[0].identifier,
-            AgentInferenceRealizationCandidateIdentifier(
+            InferenceRealizationCandidateIdentifier(
                 "baseline"
             ),
             "instruction generator assigns explicit baseline identity"
@@ -197,11 +199,6 @@ extension AgenticOptimizerFlowTesting {
             "instruction generation preserves seed execution strategy"
         )
         try Expect.equal(
-            generated[2].realization.modelSelection,
-            seed.modelSelection,
-            "instruction generation preserves seed model selection"
-        )
-        try Expect.equal(
             generated[2].realization.budget,
             seed.budget,
             "instruction generation preserves seed inference budget"
@@ -221,7 +218,7 @@ extension AgenticOptimizerFlowTesting {
             "candidate-level metadata remains separate from realization metadata"
         )
 
-        let search = AgentInferenceRealizationSearch(
+        let search = InferenceRealizationSearch(
             executor: GeneratedCandidateFixtureExecutor(),
             objective: GeneratedCandidateExactObjective()
         )
@@ -244,7 +241,7 @@ extension AgenticOptimizerFlowTesting {
         )
         try Expect.equal(
             result.selectedCandidate.identifier,
-            AgentInferenceRealizationCandidateIdentifier(
+            InferenceRealizationCandidateIdentifier(
                 "uppercase"
             ),
             "generated candidate search selects the best instruction variant"
@@ -263,7 +260,7 @@ extension AgenticOptimizerFlowTesting {
         var duplicateRejected = false
 
         do {
-            _ = try AgentInferenceInstructionVariantGenerator.parse(
+            _ = try InferenceInstructionVariantGenerator.parse(
                 variants: [
                     .init(
                         identifier: "duplicate",
@@ -276,7 +273,7 @@ extension AgenticOptimizerFlowTesting {
                 ],
                 includeSeed: false
             )
-        } catch AgentInferenceInstructionVariantGeneratorError
+        } catch InferenceInstructionVariantGeneratorError
             .duplicateCandidateIdentifier {
             duplicateRejected = true
         }
@@ -290,7 +287,7 @@ extension AgenticOptimizerFlowTesting {
         var emptyInstructionsRejected = false
 
         do {
-            _ = try AgentInferenceInstructionVariantGenerator.parse(
+            _ = try InferenceInstructionVariantGenerator.parse(
                 variants: [
                     .init(
                         identifier: "empty",
@@ -299,7 +296,7 @@ extension AgenticOptimizerFlowTesting {
                 ],
                 includeSeed: false
             )
-        } catch AgentInferenceInstructionVariantGeneratorError
+        } catch InferenceInstructionVariantGeneratorError
             .emptyInstructions {
             emptyInstructionsRejected = true
         }
@@ -313,11 +310,11 @@ extension AgenticOptimizerFlowTesting {
         var noCandidatesRejected = false
 
         do {
-            _ = try AgentInferenceInstructionVariantGenerator.parse(
+            _ = try InferenceInstructionVariantGenerator.parse(
                 variants: [],
                 includeSeed: false
             )
-        } catch AgentInferenceInstructionVariantGeneratorError
+        } catch InferenceInstructionVariantGeneratorError
             .noCandidates {
             noCandidatesRejected = true
         }
@@ -332,7 +329,7 @@ extension AgenticOptimizerFlowTesting {
             result
         )
         let decoded = try JSONDecoder().decode(
-            AgentInferenceOptimizationResult.self,
+            InferenceOptimizationResult.self,
             from: encoded
         )
 

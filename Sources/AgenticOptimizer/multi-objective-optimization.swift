@@ -1,7 +1,8 @@
+import Agentic
 import AgenticInference
 import Foundation
 
-public enum AgentOptimizationMetric:
+public enum OptimizationMetric:
     String,
     Sendable,
     Codable,
@@ -13,7 +14,7 @@ public enum AgentOptimizationMetric:
     case latency_seconds
 }
 
-public enum AgentOptimizationResourceMetricsParsingError:
+public enum OptimizationResourceMetricsParsingError:
     Error,
     Sendable,
     LocalizedError
@@ -36,7 +37,7 @@ public enum AgentOptimizationResourceMetricsParsingError:
     }
 }
 
-public struct AgentOptimizationResourceMetrics:
+public struct OptimizationResourceMetrics:
     Sendable,
     Codable,
     Hashable
@@ -61,7 +62,7 @@ public struct AgentOptimizationResourceMetrics:
         latencySeconds: Double? = nil
     ) throws -> Self {
         if let totalTokens, totalTokens < 0 {
-            throw AgentOptimizationResourceMetricsParsingError
+            throw OptimizationResourceMetricsParsingError
                 .negativeTotalTokens(
                     totalTokens
                 )
@@ -70,7 +71,7 @@ public struct AgentOptimizationResourceMetrics:
         if let estimatedUsd,
            !estimatedUsd.isFinite || estimatedUsd < 0
         {
-            throw AgentOptimizationResourceMetricsParsingError
+            throw OptimizationResourceMetricsParsingError
                 .invalidEstimatedUsd(
                     estimatedUsd
                 )
@@ -79,7 +80,7 @@ public struct AgentOptimizationResourceMetrics:
         if let latencySeconds,
            !latencySeconds.isFinite || latencySeconds < 0
         {
-            throw AgentOptimizationResourceMetricsParsingError
+            throw OptimizationResourceMetricsParsingError
                 .invalidLatencySeconds(
                     latencySeconds
                 )
@@ -93,25 +94,25 @@ public struct AgentOptimizationResourceMetrics:
     }
 }
 
-public protocol AgentOptimizationResourceEstimating:
+public protocol OptimizationResourceEstimating:
     Sendable
 {
     func estimate(
-        executions: [AgentInferenceExecutionRecord],
+        executions: [InferenceExecutionRecord],
         measuredDurationSeconds: Double
-    ) throws -> AgentOptimizationResourceMetrics
+    ) throws -> OptimizationResourceMetrics
 }
 
-public struct AgentOptimizationExecutionResourceEstimator:
-    AgentOptimizationResourceEstimating,
+public struct OptimizationExecutionResourceEstimator:
+    OptimizationResourceEstimating,
     Sendable
 {
     public init() {}
 
     public func estimate(
-        executions: [AgentInferenceExecutionRecord],
+        executions: [InferenceExecutionRecord],
         measuredDurationSeconds: Double
-    ) throws -> AgentOptimizationResourceMetrics {
+    ) throws -> OptimizationResourceMetrics {
         var totalTokens = 0
         var tokenUsageAvailable = true
 
@@ -134,7 +135,7 @@ public struct AgentOptimizationExecutionResourceEstimator:
             }
         }
 
-        return try AgentOptimizationResourceMetrics.parse(
+        return try OptimizationResourceMetrics.parse(
             totalTokens:
                 tokenUsageAvailable
                 ? totalTokens
@@ -145,13 +146,13 @@ public struct AgentOptimizationExecutionResourceEstimator:
     }
 }
 
-public enum AgentOptimizationMultiObjectiveWeightsParsingError:
+public enum OptimizationMultiObjectiveWeightsParsingError:
     Error,
     Sendable,
     LocalizedError
 {
     case invalidWeight(
-        metric: AgentOptimizationMetric,
+        metric: OptimizationMetric,
         value: Double
     )
     case noWeightedMetrics
@@ -170,7 +171,7 @@ public enum AgentOptimizationMultiObjectiveWeightsParsingError:
     }
 }
 
-public struct AgentOptimizationMultiObjectiveWeights:
+public struct OptimizationMultiObjectiveWeights:
     Sendable,
     Codable,
     Hashable
@@ -207,7 +208,7 @@ public struct AgentOptimizationMultiObjectiveWeights:
     ) throws -> Self {
         let values: [
             (
-                metric: AgentOptimizationMetric,
+                metric: OptimizationMetric,
                 value: Double
             )
         ] = [
@@ -233,7 +234,7 @@ public struct AgentOptimizationMultiObjectiveWeights:
             guard entry.value.isFinite,
                   entry.value >= 0
             else {
-                throw AgentOptimizationMultiObjectiveWeightsParsingError
+                throw OptimizationMultiObjectiveWeightsParsingError
                     .invalidWeight(
                         metric: entry.metric,
                         value: entry.value
@@ -246,7 +247,7 @@ public struct AgentOptimizationMultiObjectiveWeights:
                 $0.value > 0
             }
         ) else {
-            throw AgentOptimizationMultiObjectiveWeightsParsingError
+            throw OptimizationMultiObjectiveWeightsParsingError
                 .noWeightedMetrics
         }
 
@@ -266,31 +267,31 @@ public struct AgentOptimizationMultiObjectiveWeights:
     }
 }
 
-public struct AgentOptimizationMultiObjectiveMeasurement:
+public struct OptimizationMultiObjectiveMeasurement:
     Sendable,
     Codable,
     Hashable
 {
-    public var quality: AgentInferenceOptimizationScore
-    public var resources: AgentOptimizationResourceMetrics
+    public var quality: InferenceOptimizationScore
+    public var resources: OptimizationResourceMetrics
 
     public init(
-        quality: AgentInferenceOptimizationScore,
-        resources: AgentOptimizationResourceMetrics
+        quality: InferenceOptimizationScore,
+        resources: OptimizationResourceMetrics
     ) {
         self.quality = quality
         self.resources = resources
     }
 }
 
-public enum AgentOptimizationMultiObjectiveRankingError:
+public enum OptimizationMultiObjectiveRankingError:
     Error,
     Sendable,
     LocalizedError
 {
     case noCandidates
     case metricUnavailable(
-        AgentOptimizationMetric
+        OptimizationMetric
     )
 
     public var errorDescription: String? {
@@ -304,14 +305,14 @@ public enum AgentOptimizationMultiObjectiveRankingError:
     }
 }
 
-public struct AgentOptimizationMultiObjectiveRanking:
+public struct OptimizationMultiObjectiveRanking:
     Sendable
 {
-    public var utilities: [AgentInferenceOptimizationScore]
+    public var utilities: [InferenceOptimizationScore]
     public var selectedIndex: Int
 
     public init(
-        utilities: [AgentInferenceOptimizationScore],
+        utilities: [InferenceOptimizationScore],
         selectedIndex: Int
     ) {
         self.utilities = utilities
@@ -319,11 +320,11 @@ public struct AgentOptimizationMultiObjectiveRanking:
     }
 
     public static func rank(
-        _ measurements: [AgentOptimizationMultiObjectiveMeasurement],
-        weights: AgentOptimizationMultiObjectiveWeights
+        _ measurements: [OptimizationMultiObjectiveMeasurement],
+        weights: OptimizationMultiObjectiveWeights
     ) throws -> Self {
         guard !measurements.isEmpty else {
-            throw AgentOptimizationMultiObjectiveRankingError
+            throw OptimizationMultiObjectiveRankingError
                 .noCandidates
         }
 
@@ -377,7 +378,7 @@ public struct AgentOptimizationMultiObjectiveRanking:
             )
         }
 
-        var utilities: [AgentInferenceOptimizationScore] = []
+        var utilities: [InferenceOptimizationScore] = []
 
         for index in measurements.indices {
             var value =
@@ -403,7 +404,7 @@ public struct AgentOptimizationMultiObjectiveRanking:
             }
 
             utilities.append(
-                try AgentInferenceOptimizationScore(
+                try InferenceOptimizationScore(
                     value: value / weights.total
                 )
             )
@@ -426,8 +427,8 @@ public struct AgentOptimizationMultiObjectiveRanking:
     }
 
     public static func aggregate(
-        _ metrics: [AgentOptimizationResourceMetrics]
-    ) throws -> AgentOptimizationResourceMetrics {
+        _ metrics: [OptimizationResourceMetrics]
+    ) throws -> OptimizationResourceMetrics {
         var totalTokens = 0
         var estimatedUsd = 0.0
         var latencySeconds = 0.0
@@ -455,7 +456,7 @@ public struct AgentOptimizationMultiObjectiveRanking:
             }
         }
 
-        return try AgentOptimizationResourceMetrics.parse(
+        return try OptimizationResourceMetrics.parse(
             totalTokens:
                 tokensAvailable
                 ? totalTokens
@@ -473,7 +474,7 @@ public struct AgentOptimizationMultiObjectiveRanking:
 
     private static func values(
         _ values: [Double?],
-        metric: AgentOptimizationMetric,
+        metric: OptimizationMetric,
         weight: Double
     ) throws -> [Double]? {
         guard weight > 0 else {
@@ -484,7 +485,7 @@ public struct AgentOptimizationMultiObjectiveRanking:
 
         for value in values {
             guard let value else {
-                throw AgentOptimizationMultiObjectiveRankingError
+                throw OptimizationMultiObjectiveRankingError
                     .metricUnavailable(
                         metric
                     )

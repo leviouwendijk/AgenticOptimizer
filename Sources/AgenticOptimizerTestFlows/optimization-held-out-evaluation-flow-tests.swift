@@ -1,36 +1,44 @@
+import Agentic
 import AgenticInference
 import AgenticOptimizer
 import AgenticPrograms
 import Foundation
 import TestFlows
 
-private struct HeldOutInference: AgentInference {
+private struct HeldOutInference: Inference {
     typealias Input = String
     typealias Output = String
 
-    static let definition = AgentInferenceDefinition(
+    static let definition = InferenceDefinition(
         identifier: "fixture.held_out_inference",
         purpose: "Prove held-out examples do not participate in candidate selection."
     )
 }
 
-private struct HeldOutProgram: AgentProgram {
+private struct HeldOutProgram: Program {
     typealias Input = String
     typealias Output = String
 
-    static let descriptor = AgentProgramDescriptor(
+    static let definition = ProgramDefinition(
         identifier: "fixture.held_out_program",
-        title: "Held-Out Program",
-        summary: "One-site program used to prove held-out optimization discipline."
+        purpose: "One-site program used to prove held-out optimization discipline."
+    )
+
+    static let transform = InferenceSite<
+        Self,
+        HeldOutInference
+    >(
+        identifier: .init(
+            rawValue: "transform"
+        )
     )
 
     func run(
         _ input: String,
-        in context: AgentProgramContext
+        in context: ProgramContext
     ) async throws -> String {
         try await context.infer(
-            HeldOutInference.self,
-            at: "transform",
+            Self.transform,
             input: input
         )
     }
@@ -62,16 +70,18 @@ private actor HeldOutExecutionRecorder {
 }
 
 private struct HeldOutExecutor:
-    AgentInferenceExecuting,
+    InferenceExecuting,
     Sendable
 {
     let recorder: HeldOutExecutionRecorder
 
-    func execute<Inference: AgentInference>(
-        _ inference: Inference.Type,
-        input: Inference.Input,
-        realization: AgentInferenceRealization
-    ) async throws -> AgentInferenceExecutionResult<Inference.Output> {
+    func execute<InferenceType: Inference>(
+        _ inference: InferenceType.Type,
+        input: InferenceType.Input,
+        realization: InferenceRealizationConfiguration,
+        context: InferenceExecutionContext
+    ) async throws -> InferenceExecutionResult<InferenceType.Output> {
+        _ = context
         let inputData = try JSONEncoder().encode(
             input
         )
@@ -113,13 +123,13 @@ private struct HeldOutExecutor:
             outputText
         )
         let output = try JSONDecoder().decode(
-            Inference.Output.self,
+            InferenceType.Output.self,
             from: outputData
         )
 
-        return AgentInferenceExecutionResult(
+        return InferenceExecutionResult(
             output: output,
-            record: AgentInferenceExecutionRecord(
+            record: InferenceExecutionRecord(
                 inference: inference.definition.identifier,
                 strategy: realization.strategy,
                 budget: realization.budget,
@@ -130,17 +140,17 @@ private struct HeldOutExecutor:
 }
 
 private struct HeldOutInferenceObjective:
-    AgentInferenceOptimizationObjective,
+    InferenceOptimizationObjective,
     Sendable
 {
-    let identifier: AgentInferenceOptimizationObjectiveIdentifier =
+    let identifier: InferenceOptimizationObjectiveIdentifier =
         "held_out_inference_exact"
 
-    func score<Inference: AgentInference>(
-        _ inference: Inference.Type,
-        example: AgentInferenceOptimizationExample<Inference>,
-        result: AgentInferenceExecutionResult<Inference.Output>
-    ) async throws -> AgentInferenceOptimizationScore {
+    func score<InferenceType: Inference>(
+        _ inference: InferenceType.Type,
+        example: InferenceOptimizationExample<InferenceType>,
+        result: InferenceExecutionResult<InferenceType.Output>
+    ) async throws -> InferenceOptimizationScore {
         let expectedData = try JSONEncoder().encode(
             example.expectedOutput
         )
@@ -156,7 +166,7 @@ private struct HeldOutInferenceObjective:
             from: outputData
         )
 
-        return try AgentInferenceOptimizationScore(
+        return try InferenceOptimizationScore(
             value: actual == expected
                 ? 1.0
                 : 0.0
@@ -171,11 +181,11 @@ private struct HeldOutProgramObjective:
     let id: ProgramOptimization.ObjectiveID =
         "held_out_program_exact"
 
-    func score<Program: AgentProgram>(
-        _ program: Program.Type,
-        example: ProgramOptimization.Example<Program>,
-        output: Program.Output
-    ) async throws -> AgentInferenceOptimizationScore {
+    func score<ProgramType: Program>(
+        _ program: ProgramType.Type,
+        example: ProgramOptimization.Example<ProgramType>,
+        output: ProgramType.Output
+    ) async throws -> InferenceOptimizationScore {
         let expectedData = try JSONEncoder().encode(
             example.expectedOutput
         )
@@ -191,7 +201,7 @@ private struct HeldOutProgramObjective:
             from: outputData
         )
 
-        return try AgentInferenceOptimizationScore(
+        return try InferenceOptimizationScore(
             value: actual == expected
                 ? 1.0
                 : 0.0
@@ -206,42 +216,39 @@ private enum HeldOutFixtureError:
     case unknownInstructions(String)
 }
 
-extension AgenticOptimizerFlowTesting {
+extension OptimizerFlowTesting {
     static func runHeldOutEvaluation()
         async throws
         -> [TestFlowDiagnostic]
     {
-        let identity = AgentInferenceRealization(
+        let identity = InferenceRealizationConfiguration(
             strategy: .direct,
-            modelSelection: .executor,
             instructions: "identity",
             budget: .singleAttempt
         )
-        let trainingFit = AgentInferenceRealization(
+        let trainingFit = InferenceRealizationConfiguration(
             strategy: .direct,
-            modelSelection: .executor,
             instructions: "training_fit",
             budget: .singleAttempt
         )
-        let evaluationFit = AgentInferenceRealization(
+        let evaluationFit = InferenceRealizationConfiguration(
             strategy: .direct,
-            modelSelection: .executor,
             instructions: "evaluation_fit",
             budget: .singleAttempt
         )
-        let trainingCandidate = AgentInferenceRealizationCandidate(
+        let trainingCandidate = InferenceRealizationCandidate(
             identifier: "training_fit",
             realization: trainingFit,
             source: .instruction_variant
         )
-        let evaluationCandidate = AgentInferenceRealizationCandidate(
+        let evaluationCandidate = InferenceRealizationCandidate(
             identifier: "evaluation_fit",
             realization: evaluationFit,
             source: .instruction_variant
         )
 
         let inferenceDataset =
-            try AgentInferenceOptimizationDataset<
+            try InferenceOptimizationDataset<
                 HeldOutInference
             >.parse(
                 training: [
@@ -261,7 +268,7 @@ extension AgenticOptimizerFlowTesting {
         var emptyInferenceEvaluationRejected = false
 
         do {
-            _ = try AgentInferenceOptimizationDataset<
+            _ = try InferenceOptimizationDataset<
                 HeldOutInference
             >.parse(
                 training: [
@@ -272,7 +279,7 @@ extension AgenticOptimizerFlowTesting {
                 ],
                 evaluation: []
             )
-        } catch AgentInferenceOptimizationDatasetParsingError
+        } catch InferenceOptimizationDatasetParsingError
             .noEvaluationExamples {
             emptyInferenceEvaluationRejected = true
         }
@@ -284,7 +291,7 @@ extension AgenticOptimizerFlowTesting {
         )
 
         let inferenceRecorder = HeldOutExecutionRecorder()
-        let inferenceSearch = AgentInferenceRealizationSearch(
+        let inferenceSearch = InferenceRealizationSearch(
             executor: HeldOutExecutor(
                 recorder: inferenceRecorder
             ),
@@ -386,33 +393,33 @@ extension AgenticOptimizerFlowTesting {
         let programTrainingCandidate =
             ProgramOptimization.Candidate<HeldOutProgram>(
                 id: "program_training_fit",
-                realization: AgentProgramRealization(
-                    id: "fixture.program_training_fit",
-                    inferences: try AgentProgramInferenceBindings(
-                        [
-                            AgentInferenceRealizationBinding(
-                                site: "transform",
-                                inference: HeldOutInference.definition.identifier,
-                                realization: trainingFit
-                            ),
-                        ]
-                    )
+                realization: try ProgramRealization<HeldOutProgram>(
+                    bindings: [
+                        .init(
+                            HeldOutProgram.transform,
+                            realization: fixtureInferenceRealization(
+                                HeldOutInference.self,
+                                identifier: "transform.trainingFit",
+                                configuration: trainingFit
+                            )
+                        )
+                    ]
                 )
             )
         let programEvaluationCandidate =
             ProgramOptimization.Candidate<HeldOutProgram>(
                 id: "program_evaluation_fit",
-                realization: AgentProgramRealization(
-                    id: "fixture.program_evaluation_fit",
-                    inferences: try AgentProgramInferenceBindings(
-                        [
-                            AgentInferenceRealizationBinding(
-                                site: "transform",
-                                inference: HeldOutInference.definition.identifier,
-                                realization: evaluationFit
-                            ),
-                        ]
-                    )
+                realization: try ProgramRealization<HeldOutProgram>(
+                    bindings: [
+                        .init(
+                            HeldOutProgram.transform,
+                            realization: fixtureInferenceRealization(
+                                HeldOutInference.self,
+                                identifier: "transform.evaluationFit",
+                                configuration: evaluationFit
+                            )
+                        )
+                    ]
                 )
             )
 
@@ -470,22 +477,21 @@ extension AgenticOptimizerFlowTesting {
         )
         let coordinateReport = try await coordinateOptimizer.optimize(
             dataset: programDataset,
-            seed: AgentProgramRealization(
-                id: "fixture.coordinate_held_out_seed",
-                inferences: try AgentProgramInferenceBindings(
-                    [
-                        AgentInferenceRealizationBinding(
-                            site: "transform",
-                            inference: HeldOutInference.definition.identifier,
-                            realization: identity
-                        ),
-                    ]
-                )
+            seed: try ProgramRealization<HeldOutProgram>(
+                bindings: [
+                    .init(
+                        HeldOutProgram.transform,
+                        realization: fixtureInferenceRealization(
+                            HeldOutInference.self,
+                            identifier: "transform.identity",
+                            configuration: identity
+                        )
+                    )
+                ]
             ),
             sites: [
                 ProgramOptimization.SiteCandidates(
-                    site: "transform",
-                    inference: HeldOutInference.definition.identifier,
+                    HeldOutProgram.transform,
                     candidates: [
                         trainingCandidate,
                         evaluationCandidate,

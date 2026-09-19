@@ -1,23 +1,24 @@
+import Agentic
 import AgenticInference
 import Foundation
 import Primitives
 
-public struct AgentInferenceDemonstrationBootstrapTrial:
+public struct InferenceDemonstrationBootstrapTrial:
     Sendable,
     Codable,
     Hashable
 {
     public var exampleIndex: Int
-    public var demonstration: AgentInferenceDemonstration
-    public var score: AgentInferenceOptimizationScore
-    public var execution: AgentInferenceExecutionRecord
+    public var demonstration: InferenceDemonstration
+    public var score: InferenceOptimizationScore
+    public var execution: InferenceExecutionRecord
     public var accepted: Bool
 
     public init(
         exampleIndex: Int,
-        demonstration: AgentInferenceDemonstration,
-        score: AgentInferenceOptimizationScore,
-        execution: AgentInferenceExecutionRecord,
+        demonstration: InferenceDemonstration,
+        score: InferenceOptimizationScore,
+        execution: InferenceExecutionRecord,
         accepted: Bool
     ) {
         self.exampleIndex = exampleIndex
@@ -28,23 +29,23 @@ public struct AgentInferenceDemonstrationBootstrapTrial:
     }
 }
 
-public struct AgentInferenceDemonstrationBootstrapRecord:
+public struct InferenceDemonstrationBootstrapRecord:
     Sendable,
     Codable,
     Hashable
 {
-    public var inference: AgentInferenceIdentifier
-    public var objective: AgentInferenceOptimizationObjectiveIdentifier
-    public var teacher: AgentInferenceRealization
+    public var inference: InferenceIdentifier
+    public var objective: InferenceOptimizationObjectiveIdentifier
+    public var teacher: InferenceRealizationConfiguration
     public var minimumScore: Double
-    public var trials: [AgentInferenceDemonstrationBootstrapTrial]
+    public var trials: [InferenceDemonstrationBootstrapTrial]
 
     public init(
-        inference: AgentInferenceIdentifier,
-        objective: AgentInferenceOptimizationObjectiveIdentifier,
-        teacher: AgentInferenceRealization,
+        inference: InferenceIdentifier,
+        objective: InferenceOptimizationObjectiveIdentifier,
+        teacher: InferenceRealizationConfiguration,
         minimumScore: Double,
-        trials: [AgentInferenceDemonstrationBootstrapTrial]
+        trials: [InferenceDemonstrationBootstrapTrial]
     ) {
         self.inference = inference
         self.objective = objective
@@ -64,13 +65,13 @@ public struct AgentInferenceDemonstrationBootstrapRecord:
     }
 }
 
-public enum AgentInferenceDemonstrationBootstrapGeneratorError:
+public enum InferenceDemonstrationBootstrapGeneratorError:
     Error,
     Sendable,
     LocalizedError
 {
     case duplicateCandidateIdentifier(
-        AgentInferenceRealizationCandidateIdentifier
+        InferenceRealizationCandidateIdentifier
     )
     case noAcceptedDemonstrations
 
@@ -85,27 +86,27 @@ public enum AgentInferenceDemonstrationBootstrapGeneratorError:
     }
 }
 
-public struct AgentInferenceDemonstrationBootstrapGenerator:
-    AgentInferenceRealizationCandidateGenerating,
+public struct InferenceDemonstrationBootstrapGenerator:
+    InferenceRealizationCandidateGenerating,
     Sendable
 {
-    private let executor: any AgentInferenceExecuting
-    private let objective: any AgentInferenceOptimizationObjective
+    private let executor: any InferenceExecuting
+    private let objective: any InferenceOptimizationObjective
 
-    public let teacher: AgentInferenceRealization
-    public let minimumScore: AgentInferenceOptimizationScore
+    public let teacher: InferenceRealizationConfiguration
+    public let minimumScore: InferenceOptimizationScore
     public let includeSeed: Bool
-    public let seedIdentifier: AgentInferenceRealizationCandidateIdentifier
-    public let bootstrapIdentifier: AgentInferenceRealizationCandidateIdentifier
+    public let seedIdentifier: InferenceRealizationCandidateIdentifier
+    public let bootstrapIdentifier: InferenceRealizationCandidateIdentifier
 
     private init(
-        executor: any AgentInferenceExecuting,
-        objective: any AgentInferenceOptimizationObjective,
-        teacher: AgentInferenceRealization,
-        parsedMinimumScore minimumScore: AgentInferenceOptimizationScore,
+        executor: any InferenceExecuting,
+        objective: any InferenceOptimizationObjective,
+        teacher: InferenceRealizationConfiguration,
+        parsedMinimumScore minimumScore: InferenceOptimizationScore,
         includeSeed: Bool,
-        seedIdentifier: AgentInferenceRealizationCandidateIdentifier,
-        bootstrapIdentifier: AgentInferenceRealizationCandidateIdentifier
+        seedIdentifier: InferenceRealizationCandidateIdentifier,
+        bootstrapIdentifier: InferenceRealizationCandidateIdentifier
     ) {
         self.executor = executor
         self.objective = objective
@@ -117,20 +118,20 @@ public struct AgentInferenceDemonstrationBootstrapGenerator:
     }
 
     public static func parse(
-        executor: any AgentInferenceExecuting,
-        objective: any AgentInferenceOptimizationObjective,
-        teacher: AgentInferenceRealization,
+        executor: any InferenceExecuting,
+        objective: any InferenceOptimizationObjective,
+        teacher: InferenceRealizationConfiguration,
         minimumScore: Double,
         includeSeed: Bool = true,
-        seedIdentifier: AgentInferenceRealizationCandidateIdentifier = "seed",
-        bootstrapIdentifier: AgentInferenceRealizationCandidateIdentifier = "bootstrapped"
+        seedIdentifier: InferenceRealizationCandidateIdentifier = "seed",
+        bootstrapIdentifier: InferenceRealizationCandidateIdentifier = "bootstrapped"
     ) throws -> Self {
-        let parsedMinimumScore = try AgentInferenceOptimizationScore(
+        let parsedMinimumScore = try InferenceOptimizationScore(
             value: minimumScore
         )
 
         if includeSeed && seedIdentifier == bootstrapIdentifier {
-            throw AgentInferenceDemonstrationBootstrapGeneratorError
+            throw InferenceDemonstrationBootstrapGeneratorError
                 .duplicateCandidateIdentifier(
                     seedIdentifier
                 )
@@ -147,16 +148,16 @@ public struct AgentInferenceDemonstrationBootstrapGenerator:
         )
     }
 
-    public func generate<Inference: AgentInference>(
-        _ inference: Inference.Type,
-        examples: [AgentInferenceOptimizationExample<Inference>],
-        seed: AgentInferenceRealization
-    ) async throws -> [AgentInferenceRealizationCandidate] {
-        var candidates: [AgentInferenceRealizationCandidate] = []
+    public func generate<InferenceType: Inference>(
+        _ inference: InferenceType.Type,
+        examples: [InferenceOptimizationExample<InferenceType>],
+        seed: InferenceRealizationConfiguration
+    ) async throws -> [InferenceRealizationCandidate] {
+        var candidates: [InferenceRealizationCandidate] = []
 
         if includeSeed {
             candidates.append(
-                AgentInferenceRealizationCandidate(
+                InferenceRealizationCandidate(
                     identifier: seedIdentifier,
                     realization: seed,
                     source: .seed
@@ -164,8 +165,8 @@ public struct AgentInferenceDemonstrationBootstrapGenerator:
             )
         }
 
-        var acceptedDemonstrations: [AgentInferenceDemonstration] = []
-        var trials: [AgentInferenceDemonstrationBootstrapTrial] = []
+        var acceptedDemonstrations: [InferenceDemonstration] = []
+        var trials: [InferenceDemonstrationBootstrapTrial] = []
 
         for (exampleIndex, example) in examples.enumerated() {
             let execution = try await executor.execute(
@@ -190,7 +191,7 @@ public struct AgentInferenceDemonstrationBootstrapGenerator:
             )
             metadata["bootstrap.teacher_strategy"] = teacher.strategy.rawValue
 
-            let demonstration = AgentInferenceDemonstration(
+            let demonstration = InferenceDemonstration(
                 input: try jsonValue(
                     example.input
                 ),
@@ -201,7 +202,7 @@ public struct AgentInferenceDemonstrationBootstrapGenerator:
             )
 
             trials.append(
-                AgentInferenceDemonstrationBootstrapTrial(
+                InferenceDemonstrationBootstrapTrial(
                     exampleIndex: exampleIndex,
                     demonstration: demonstration,
                     score: score,
@@ -218,7 +219,7 @@ public struct AgentInferenceDemonstrationBootstrapGenerator:
         }
 
         if !acceptedDemonstrations.isEmpty {
-            let bootstrap = AgentInferenceDemonstrationBootstrapRecord(
+            let bootstrap = InferenceDemonstrationBootstrapRecord(
                 inference: inference.definition.identifier,
                 objective: objective.identifier,
                 teacher: teacher,
@@ -232,7 +233,7 @@ public struct AgentInferenceDemonstrationBootstrapGenerator:
             )
 
             candidates.append(
-                AgentInferenceRealizationCandidate(
+                InferenceRealizationCandidate(
                     identifier: bootstrapIdentifier,
                     realization: realization,
                     source: .demonstration_bootstrap,
@@ -250,7 +251,7 @@ public struct AgentInferenceDemonstrationBootstrapGenerator:
         }
 
         guard !candidates.isEmpty else {
-            throw AgentInferenceDemonstrationBootstrapGeneratorError
+            throw InferenceDemonstrationBootstrapGeneratorError
                 .noAcceptedDemonstrations
         }
 

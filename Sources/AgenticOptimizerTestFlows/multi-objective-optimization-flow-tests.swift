@@ -1,50 +1,60 @@
+import Agentic
 import AgenticInference
 import AgenticOptimizer
 import AgenticPrograms
 import Foundation
 import TestFlows
 
-private struct MultiObjectiveInference: AgentInference {
+private struct MultiObjectiveInference: Inference {
     typealias Input = String
     typealias Output = String
 
-    static let definition = AgentInferenceDefinition(
+    static let definition = InferenceDefinition(
         identifier: "fixture.multi_objective_inference",
         purpose: "Exercise quality and resource tradeoffs."
     )
 }
 
-private struct MultiObjectiveProgram: AgentProgram {
+private struct MultiObjectiveProgram: Program {
     typealias Input = String
     typealias Output = String
 
-    static let descriptor = AgentProgramDescriptor(
+    static let definition = ProgramDefinition(
         identifier: "fixture.multi_objective_program",
-        title: "Multi Objective Program",
-        summary: "One-site program for multi-objective optimization."
+        purpose: "One-site program for multi-objective optimization."
+    )
+
+    static let transform = InferenceSite<
+        Self,
+        MultiObjectiveInference
+    >(
+        identifier: .init(
+            rawValue: "transform"
+        )
     )
 
     func run(
         _ input: String,
-        in context: AgentProgramContext
+        in context: ProgramContext
     ) async throws -> String {
         try await context.infer(
-            MultiObjectiveInference.self,
-            at: "transform",
+            Self.transform,
             input: input
         )
     }
 }
 
 private struct MultiObjectiveFixtureExecutor:
-    AgentInferenceExecuting,
+    InferenceExecuting,
     Sendable
 {
-    func execute<Inference: AgentInference>(
-        _ inference: Inference.Type,
-        input: Inference.Input,
-        realization: AgentInferenceRealization
-    ) async throws -> AgentInferenceExecutionResult<Inference.Output> {
+    func execute<InferenceType: Inference>(
+        _ inference: InferenceType.Type,
+        input: InferenceType.Input,
+        realization: InferenceRealizationConfiguration,
+        context: InferenceExecutionContext
+    ) async throws -> InferenceExecutionResult<InferenceType.Output> {
+        _ = context
         let inputData = try JSONEncoder().encode(
             input
         )
@@ -83,13 +93,13 @@ private struct MultiObjectiveFixtureExecutor:
             outputText
         )
         let output = try JSONDecoder().decode(
-            Inference.Output.self,
+            InferenceType.Output.self,
             from: outputData
         )
 
-        return AgentInferenceExecutionResult(
+        return InferenceExecutionResult(
             output: output,
-            record: AgentInferenceExecutionRecord(
+            record: InferenceExecutionRecord(
                 inference: inference.definition.identifier,
                 strategy: realization.strategy,
                 budget: realization.budget,
@@ -102,13 +112,13 @@ private struct MultiObjectiveFixtureExecutor:
 }
 
 private struct MultiObjectiveFixtureResourceEstimator:
-    AgentOptimizationResourceEstimating,
+    OptimizationResourceEstimating,
     Sendable
 {
     func estimate(
-        executions: [AgentInferenceExecutionRecord],
+        executions: [InferenceExecutionRecord],
         measuredDurationSeconds: Double
-    ) throws -> AgentOptimizationResourceMetrics {
+    ) throws -> OptimizationResourceMetrics {
         let resourceClass =
             executions.first?.metadata[
                 "resource_class"
@@ -117,21 +127,21 @@ private struct MultiObjectiveFixtureResourceEstimator:
 
         switch resourceClass {
         case "expensive":
-            return try AgentOptimizationResourceMetrics.parse(
+            return try OptimizationResourceMetrics.parse(
                 totalTokens: 100,
                 estimatedUsd: 10,
                 latencySeconds: 10
             )
 
         case "balanced":
-            return try AgentOptimizationResourceMetrics.parse(
+            return try OptimizationResourceMetrics.parse(
                 totalTokens: 20,
                 estimatedUsd: 2,
                 latencySeconds: 2
             )
 
         default:
-            return try AgentOptimizationResourceMetrics.parse(
+            return try OptimizationResourceMetrics.parse(
                 totalTokens: 10,
                 estimatedUsd: 1,
                 latencySeconds: 1
@@ -141,17 +151,17 @@ private struct MultiObjectiveFixtureResourceEstimator:
 }
 
 private struct MultiObjectiveInferenceObjective:
-    AgentInferenceOptimizationObjective,
+    InferenceOptimizationObjective,
     Sendable
 {
-    let identifier: AgentInferenceOptimizationObjectiveIdentifier =
+    let identifier: InferenceOptimizationObjectiveIdentifier =
         "multi_objective_quality"
 
-    func score<Inference: AgentInference>(
-        _ inference: Inference.Type,
-        example: AgentInferenceOptimizationExample<Inference>,
-        result: AgentInferenceExecutionResult<Inference.Output>
-    ) async throws -> AgentInferenceOptimizationScore {
+    func score<InferenceType: Inference>(
+        _ inference: InferenceType.Type,
+        example: InferenceOptimizationExample<InferenceType>,
+        result: InferenceExecutionResult<InferenceType.Output>
+    ) async throws -> InferenceOptimizationScore {
         let expectedData = try JSONEncoder().encode(
             example.expectedOutput
         )
@@ -167,7 +177,7 @@ private struct MultiObjectiveInferenceObjective:
             from: outputData
         )
 
-        return try AgentInferenceOptimizationScore(
+        return try InferenceOptimizationScore(
             value:
                 actual == expected
                 ? 1
@@ -183,11 +193,11 @@ private struct MultiObjectiveProgramObjective:
     let id: ProgramOptimization.ObjectiveID =
         "multi_objective_program_quality"
 
-    func score<Program: AgentProgram>(
-        _ program: Program.Type,
-        example: ProgramOptimization.Example<Program>,
-        output: Program.Output
-    ) async throws -> AgentInferenceOptimizationScore {
+    func score<ProgramType: Program>(
+        _ program: ProgramType.Type,
+        example: ProgramOptimization.Example<ProgramType>,
+        output: ProgramType.Output
+    ) async throws -> InferenceOptimizationScore {
         let expectedData = try JSONEncoder().encode(
             example.expectedOutput
         )
@@ -203,7 +213,7 @@ private struct MultiObjectiveProgramObjective:
             from: outputData
         )
 
-        return try AgentInferenceOptimizationScore(
+        return try InferenceOptimizationScore(
             value:
                 actual == expected
                 ? 1
@@ -219,45 +229,42 @@ private enum MultiObjectiveFixtureError:
     case unknownInstructions(String)
 }
 
-extension AgenticOptimizerFlowTesting {
+extension OptimizerFlowTesting {
     static func runMultiObjectiveOptimization()
         async throws
         -> [TestFlowDiagnostic]
     {
-        let quality = AgentInferenceRealization(
+        let quality = InferenceRealizationConfiguration(
             strategy: .direct,
-            modelSelection: .executor,
             instructions: "quality",
             budget: .singleAttempt
         )
-        let balanced = AgentInferenceRealization(
+        let balanced = InferenceRealizationConfiguration(
             strategy: .direct,
-            modelSelection: .executor,
             instructions: "balanced",
             budget: .singleAttempt
         )
-        let cheap = AgentInferenceRealization(
+        let cheap = InferenceRealizationConfiguration(
             strategy: .direct,
-            modelSelection: .executor,
             instructions: "cheap",
             budget: .singleAttempt
         )
         let inferenceCandidates = [
-            AgentInferenceRealizationCandidate(
+            InferenceRealizationCandidate(
                 identifier: "quality",
                 realization: quality
             ),
-            AgentInferenceRealizationCandidate(
+            InferenceRealizationCandidate(
                 identifier: "balanced",
                 realization: balanced
             ),
-            AgentInferenceRealizationCandidate(
+            InferenceRealizationCandidate(
                 identifier: "cheap",
                 realization: cheap
             ),
         ]
         let inferenceDataset =
-            try AgentInferenceOptimizationDataset<
+            try InferenceOptimizationDataset<
                 MultiObjectiveInference
             >.parse(
                 training: [
@@ -277,13 +284,13 @@ extension AgenticOptimizerFlowTesting {
                     ),
                 ]
             )
-        let weights = try AgentOptimizationMultiObjectiveWeights.parse(
+        let weights = try OptimizationMultiObjectiveWeights.parse(
             quality: 0.40,
             totalTokens: 0.20,
             estimatedUsd: 0.20,
             latencySeconds: 0.20
         )
-        let inferenceOptimizer = AgentInferenceMultiObjectiveOptimizer(
+        let inferenceOptimizer = InferenceMultiObjectiveOptimizer(
             executor: MultiObjectiveFixtureExecutor(),
             objective: MultiObjectiveInferenceObjective(),
             resources: MultiObjectiveFixtureResourceEstimator()
@@ -297,7 +304,7 @@ extension AgenticOptimizerFlowTesting {
 
         try Expect.equal(
             inferenceReport.optimization.selectedCandidate.identifier,
-            AgentInferenceRealizationCandidateIdentifier(
+            InferenceRealizationCandidateIdentifier(
                 "balanced"
             ),
             "multi-objective inference selection can trade a small quality reduction for large token, cost, and latency improvements"
@@ -319,7 +326,7 @@ extension AgenticOptimizerFlowTesting {
         )
         try Expect.equal(
             inferenceReport.evaluation.quality.candidate.identifier,
-            AgentInferenceRealizationCandidateIdentifier(
+            InferenceRealizationCandidateIdentifier(
                 "balanced"
             ),
             "held-out evaluation runs the multi-objective selected candidate"
@@ -345,20 +352,17 @@ extension AgenticOptimizerFlowTesting {
                 id: ProgramOptimization.CandidateID(
                     rawValue: id
                 ),
-                realization: AgentProgramRealization(
-                    id: AgentProgramRealizationIdentifier(
-                        rawValue: "fixture.\(id)"
-                    ),
-                    inferences: try AgentProgramInferenceBindings(
-                        [
-                            AgentInferenceRealizationBinding(
-                                site: "transform",
-                                inference: MultiObjectiveInference
-                                    .definition.identifier,
-                                realization: realization
-                            ),
-                        ]
-                    )
+                realization: try ProgramRealization<MultiObjectiveProgram>(
+                    bindings: [
+                        .init(
+                            MultiObjectiveProgram.transform,
+                            realization: fixtureInferenceRealization(
+                                MultiObjectiveInference.self,
+                                identifier: "transform.realization",
+                                configuration: realization
+                            )
+                        )
+                    ]
                 )
             )
         }
@@ -404,7 +408,7 @@ extension AgenticOptimizerFlowTesting {
             programReport.optimization.candidates[1]
                 .resources.totalTokens,
             40,
-            "whole-program resource aggregation sees inference executions hidden behind AgentProgramContext"
+            "whole-program resource aggregation sees inference executions hidden behind ProgramContext"
         )
         try Expect.equal(
             programReport.optimization.trials[0]
@@ -423,13 +427,13 @@ extension AgenticOptimizerFlowTesting {
         var emptyWeightsRejected = false
 
         do {
-            _ = try AgentOptimizationMultiObjectiveWeights.parse(
+            _ = try OptimizationMultiObjectiveWeights.parse(
                 quality: 0,
                 totalTokens: 0,
                 estimatedUsd: 0,
                 latencySeconds: 0
             )
-        } catch AgentOptimizationMultiObjectiveWeightsParsingError
+        } catch OptimizationMultiObjectiveWeightsParsingError
             .noWeightedMetrics {
             emptyWeightsRejected = true
         }
@@ -440,7 +444,7 @@ extension AgenticOptimizerFlowTesting {
             "multi-objective weights are valid by construction"
         )
 
-        let defaultResources = AgentOptimizationExecutionResourceEstimator()
+        let defaultResources = OptimizationExecutionResourceEstimator()
         let missingCost = try defaultResources.estimate(
             executions: [],
             measuredDurationSeconds: 0
@@ -448,21 +452,21 @@ extension AgenticOptimizerFlowTesting {
         var unavailableCostRejected = false
 
         do {
-            _ = try AgentOptimizationMultiObjectiveRanking.rank(
+            _ = try OptimizationMultiObjectiveRanking.rank(
                 [
-                    AgentOptimizationMultiObjectiveMeasurement(
-                        quality: try AgentInferenceOptimizationScore(
+                    OptimizationMultiObjectiveMeasurement(
+                        quality: try InferenceOptimizationScore(
                             value: 1
                         ),
                         resources: missingCost
                     ),
                 ],
-                weights: try AgentOptimizationMultiObjectiveWeights.parse(
+                weights: try OptimizationMultiObjectiveWeights.parse(
                     quality: 1,
                     estimatedUsd: 1
                 )
             )
-        } catch AgentOptimizationMultiObjectiveRankingError
+        } catch OptimizationMultiObjectiveRankingError
             .metricUnavailable(.estimated_usd) {
             unavailableCostRejected = true
         }

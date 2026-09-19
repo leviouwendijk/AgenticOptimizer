@@ -1,16 +1,17 @@
+import Agentic
 import AgenticInference
 
-public struct AgentInferenceMultiObjectiveCandidateResult:
+public struct InferenceMultiObjectiveCandidateResult:
     Sendable
 {
-    public var quality: AgentInferenceOptimizationCandidateResult
-    public var resources: AgentOptimizationResourceMetrics
-    public var utility: AgentInferenceOptimizationScore
+    public var quality: InferenceOptimizationCandidateResult
+    public var resources: OptimizationResourceMetrics
+    public var utility: InferenceOptimizationScore
 
     public init(
-        quality: AgentInferenceOptimizationCandidateResult,
-        resources: AgentOptimizationResourceMetrics,
-        utility: AgentInferenceOptimizationScore
+        quality: InferenceOptimizationCandidateResult,
+        resources: OptimizationResourceMetrics,
+        utility: InferenceOptimizationScore
     ) {
         self.quality = quality
         self.resources = resources
@@ -18,21 +19,21 @@ public struct AgentInferenceMultiObjectiveCandidateResult:
     }
 }
 
-public struct AgentInferenceMultiObjectiveResult:
+public struct InferenceMultiObjectiveResult:
     Sendable
 {
-    public var objective: AgentInferenceOptimizationObjectiveIdentifier
-    public var weights: AgentOptimizationMultiObjectiveWeights
-    public var selectedCandidate: AgentInferenceRealizationCandidate
-    public var candidates: [AgentInferenceMultiObjectiveCandidateResult]
-    public var trials: [AgentInferenceOptimizationTrial]
+    public var objective: InferenceOptimizationObjectiveIdentifier
+    public var weights: OptimizationMultiObjectiveWeights
+    public var selectedCandidate: InferenceRealizationCandidate
+    public var candidates: [InferenceMultiObjectiveCandidateResult]
+    public var trials: [InferenceOptimizationTrial]
 
     public init(
-        objective: AgentInferenceOptimizationObjectiveIdentifier,
-        weights: AgentOptimizationMultiObjectiveWeights,
-        selectedCandidate: AgentInferenceRealizationCandidate,
-        candidates: [AgentInferenceMultiObjectiveCandidateResult],
-        trials: [AgentInferenceOptimizationTrial]
+        objective: InferenceOptimizationObjectiveIdentifier,
+        weights: OptimizationMultiObjectiveWeights,
+        selectedCandidate: InferenceRealizationCandidate,
+        candidates: [InferenceMultiObjectiveCandidateResult],
+        trials: [InferenceOptimizationTrial]
     ) {
         self.objective = objective
         self.weights = weights
@@ -42,61 +43,61 @@ public struct AgentInferenceMultiObjectiveResult:
     }
 }
 
-public struct AgentInferenceMultiObjectiveEvaluation:
+public struct InferenceMultiObjectiveEvaluation:
     Sendable
 {
-    public var quality: AgentInferenceOptimizationEvaluation
-    public var resources: AgentOptimizationResourceMetrics
+    public var quality: InferenceOptimizationEvaluation
+    public var resources: OptimizationResourceMetrics
 
     public init(
-        quality: AgentInferenceOptimizationEvaluation,
-        resources: AgentOptimizationResourceMetrics
+        quality: InferenceOptimizationEvaluation,
+        resources: OptimizationResourceMetrics
     ) {
         self.quality = quality
         self.resources = resources
     }
 }
 
-public struct AgentInferenceMultiObjectiveReport:
+public struct InferenceMultiObjectiveReport:
     Sendable
 {
-    public var optimization: AgentInferenceMultiObjectiveResult
-    public var evaluation: AgentInferenceMultiObjectiveEvaluation
+    public var optimization: InferenceMultiObjectiveResult
+    public var evaluation: InferenceMultiObjectiveEvaluation
 
     public init(
-        optimization: AgentInferenceMultiObjectiveResult,
-        evaluation: AgentInferenceMultiObjectiveEvaluation
+        optimization: InferenceMultiObjectiveResult,
+        evaluation: InferenceMultiObjectiveEvaluation
     ) {
         self.optimization = optimization
         self.evaluation = evaluation
     }
 }
 
-public struct AgentInferenceMultiObjectiveOptimizer:
+public struct InferenceMultiObjectiveOptimizer:
     Sendable
 {
-    private let search: AgentInferenceRealizationSearch
-    private let resources: any AgentOptimizationResourceEstimating
+    private let search: InferenceRealizationSearch
+    private let resources: any OptimizationResourceEstimating
 
     public init(
-        executor: any AgentInferenceExecuting,
-        objective: any AgentInferenceOptimizationObjective,
-        resources: any AgentOptimizationResourceEstimating =
-            AgentOptimizationExecutionResourceEstimator()
+        executor: any InferenceExecuting,
+        objective: any InferenceOptimizationObjective,
+        resources: any OptimizationResourceEstimating =
+            OptimizationExecutionResourceEstimator()
     ) {
-        self.search = AgentInferenceRealizationSearch(
+        self.search = InferenceRealizationSearch(
             executor: executor,
             objective: objective
         )
         self.resources = resources
     }
 
-    public func optimize<Inference: AgentInference>(
-        _ inference: Inference.Type,
-        dataset: AgentInferenceOptimizationDataset<Inference>,
-        candidates: [AgentInferenceRealizationCandidate],
-        weights: AgentOptimizationMultiObjectiveWeights
-    ) async throws -> AgentInferenceMultiObjectiveReport {
+    public func optimize<InferenceType: Inference>(
+        _ inference: InferenceType.Type,
+        dataset: InferenceOptimizationDataset<InferenceType>,
+        candidates: [InferenceRealizationCandidate],
+        weights: OptimizationMultiObjectiveWeights
+    ) async throws -> InferenceMultiObjectiveReport {
         let optimization = try await optimize(
             inference,
             examples: dataset.training,
@@ -112,32 +113,32 @@ public struct AgentInferenceMultiObjectiveOptimizer:
             qualityEvaluation.trials
         )
 
-        return AgentInferenceMultiObjectiveReport(
+        return InferenceMultiObjectiveReport(
             optimization: optimization,
-            evaluation: AgentInferenceMultiObjectiveEvaluation(
+            evaluation: InferenceMultiObjectiveEvaluation(
                 quality: qualityEvaluation,
                 resources: resourceEvaluation
             )
         )
     }
 
-    public func optimize<Inference: AgentInference>(
-        _ inference: Inference.Type,
-        examples: AgentInferenceOptimizationExamples<Inference>,
-        candidates: [AgentInferenceRealizationCandidate],
-        weights: AgentOptimizationMultiObjectiveWeights
-    ) async throws -> AgentInferenceMultiObjectiveResult {
+    public func optimize<InferenceType: Inference>(
+        _ inference: InferenceType.Type,
+        examples: InferenceOptimizationExamples<InferenceType>,
+        candidates: [InferenceRealizationCandidate],
+        weights: OptimizationMultiObjectiveWeights
+    ) async throws -> InferenceMultiObjectiveResult {
         let qualityResult = try await search.optimize(
             inference,
-            problem: AgentInferenceOptimizationProblem(
+            problem: InferenceOptimizationProblem(
                 examples: examples,
-                candidates: try AgentInferenceRealizationCandidates.parse(
+                candidates: try InferenceRealizationCandidates.parse(
                     candidates
                 )
             )
         )
-        var measurements: [AgentOptimizationMultiObjectiveMeasurement] = []
-        var resourceMetrics: [AgentOptimizationResourceMetrics] = []
+        var measurements: [OptimizationMultiObjectiveMeasurement] = []
+        var resourceMetrics: [OptimizationResourceMetrics] = []
 
         for candidate in qualityResult.candidates {
             let trials = candidate.trialIndexes.map {
@@ -151,26 +152,26 @@ public struct AgentInferenceMultiObjectiveOptimizer:
                 resources
             )
             measurements.append(
-                AgentOptimizationMultiObjectiveMeasurement(
+                OptimizationMultiObjectiveMeasurement(
                     quality: candidate.mean,
                     resources: resources
                 )
             )
         }
 
-        let ranking = try AgentOptimizationMultiObjectiveRanking.rank(
+        let ranking = try OptimizationMultiObjectiveRanking.rank(
             measurements,
             weights: weights
         )
         let assessed = qualityResult.candidates.indices.map { index in
-            AgentInferenceMultiObjectiveCandidateResult(
+            InferenceMultiObjectiveCandidateResult(
                 quality: qualityResult.candidates[index],
                 resources: resourceMetrics[index],
                 utility: ranking.utilities[index]
             )
         }
 
-        return AgentInferenceMultiObjectiveResult(
+        return InferenceMultiObjectiveResult(
             objective: qualityResult.objective,
             weights: weights,
             selectedCandidate:
@@ -183,8 +184,8 @@ public struct AgentInferenceMultiObjectiveOptimizer:
     }
 
     private func candidateResources(
-        _ trials: [AgentInferenceOptimizationTrial]
-    ) throws -> AgentOptimizationResourceMetrics {
+        _ trials: [InferenceOptimizationTrial]
+    ) throws -> OptimizationResourceMetrics {
         let metrics = try trials.map { trial in
             try resources.estimate(
                 executions: [
@@ -194,7 +195,7 @@ public struct AgentInferenceMultiObjectiveOptimizer:
             )
         }
 
-        return try AgentOptimizationMultiObjectiveRanking.aggregate(
+        return try OptimizationMultiObjectiveRanking.aggregate(
             metrics
         )
     }

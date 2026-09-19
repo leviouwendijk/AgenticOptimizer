@@ -1,23 +1,24 @@
+import Agentic
 import AgenticInference
 
-public struct AgentInferenceRealizationSearch: Sendable {
-    private let executor: any AgentInferenceExecuting
-    private let objective: any AgentInferenceOptimizationObjective
+public struct InferenceRealizationSearch: Sendable {
+    private let executor: any InferenceExecuting
+    private let objective: any InferenceOptimizationObjective
 
     public init(
-        executor: any AgentInferenceExecuting,
-        objective: any AgentInferenceOptimizationObjective
+        executor: any InferenceExecuting,
+        objective: any InferenceOptimizationObjective
     ) {
         self.executor = executor
         self.objective = objective
     }
 
-    public func optimize<Inference: AgentInference>(
-        _ inference: Inference.Type,
-        dataset: AgentInferenceOptimizationDataset<Inference>,
-        seed: AgentInferenceRealization,
-        generator: any AgentInferenceRealizationCandidateGenerating
-    ) async throws -> AgentInferenceOptimizationReport {
+    public func optimize<InferenceType: Inference>(
+        _ inference: InferenceType.Type,
+        dataset: InferenceOptimizationDataset<InferenceType>,
+        seed: InferenceRealizationConfiguration,
+        generator: any InferenceRealizationCandidateGenerating
+    ) async throws -> InferenceOptimizationReport {
         let generated = try await generator.generate(
             inference,
             examples: dataset.training.values,
@@ -25,9 +26,9 @@ public struct AgentInferenceRealizationSearch: Sendable {
         )
         let optimization = try await optimize(
             inference,
-            problem: AgentInferenceOptimizationProblem(
+            problem: InferenceOptimizationProblem(
                 examples: dataset.training,
-                candidates: try AgentInferenceRealizationCandidates.parse(
+                candidates: try InferenceRealizationCandidates.parse(
                     generated
                 )
             )
@@ -38,22 +39,22 @@ public struct AgentInferenceRealizationSearch: Sendable {
             examples: dataset.evaluation
         )
 
-        return AgentInferenceOptimizationReport(
+        return InferenceOptimizationReport(
             optimization: optimization,
             evaluation: evaluation
         )
     }
 
-    public func optimize<Inference: AgentInference>(
-        _ inference: Inference.Type,
-        dataset: AgentInferenceOptimizationDataset<Inference>,
-        candidates: [AgentInferenceRealizationCandidate]
-    ) async throws -> AgentInferenceOptimizationReport {
+    public func optimize<InferenceType: Inference>(
+        _ inference: InferenceType.Type,
+        dataset: InferenceOptimizationDataset<InferenceType>,
+        candidates: [InferenceRealizationCandidate]
+    ) async throws -> InferenceOptimizationReport {
         let optimization = try await optimize(
             inference,
-            problem: AgentInferenceOptimizationProblem(
+            problem: InferenceOptimizationProblem(
                 examples: dataset.training,
-                candidates: try AgentInferenceRealizationCandidates.parse(
+                candidates: try InferenceRealizationCandidates.parse(
                     candidates
                 )
             )
@@ -64,20 +65,20 @@ public struct AgentInferenceRealizationSearch: Sendable {
             examples: dataset.evaluation
         )
 
-        return AgentInferenceOptimizationReport(
+        return InferenceOptimizationReport(
             optimization: optimization,
             evaluation: evaluation
         )
     }
 
-    public func optimize<Inference: AgentInference>(
-        _ inference: Inference.Type,
-        examples: [AgentInferenceOptimizationExample<Inference>],
-        seed: AgentInferenceRealization,
-        generator: any AgentInferenceRealizationCandidateGenerating
-    ) async throws -> AgentInferenceOptimizationResult {
+    public func optimize<InferenceType: Inference>(
+        _ inference: InferenceType.Type,
+        examples: [InferenceOptimizationExample<InferenceType>],
+        seed: InferenceRealizationConfiguration,
+        generator: any InferenceRealizationCandidateGenerating
+    ) async throws -> InferenceOptimizationResult {
         let parsedExamples =
-            try AgentInferenceOptimizationExamples<Inference>.parse(
+            try InferenceOptimizationExamples<InferenceType>.parse(
                 examples
             )
         let generated = try await generator.generate(
@@ -85,9 +86,9 @@ public struct AgentInferenceRealizationSearch: Sendable {
             examples: parsedExamples.values,
             seed: seed
         )
-        let problem = AgentInferenceOptimizationProblem(
+        let problem = InferenceOptimizationProblem(
             examples: parsedExamples,
-            candidates: try AgentInferenceRealizationCandidates.parse(
+            candidates: try InferenceRealizationCandidates.parse(
                 generated
             )
         )
@@ -98,29 +99,29 @@ public struct AgentInferenceRealizationSearch: Sendable {
         )
     }
 
-    public func optimize<Inference: AgentInference>(
-        _ inference: Inference.Type,
-        examples: [AgentInferenceOptimizationExample<Inference>],
-        candidates: [AgentInferenceRealizationCandidate]
-    ) async throws -> AgentInferenceOptimizationResult {
+    public func optimize<InferenceType: Inference>(
+        _ inference: InferenceType.Type,
+        examples: [InferenceOptimizationExample<InferenceType>],
+        candidates: [InferenceRealizationCandidate]
+    ) async throws -> InferenceOptimizationResult {
         try await optimize(
             inference,
-            problem: AgentInferenceOptimizationProblem.parse(
+            problem: InferenceOptimizationProblem.parse(
                 examples: examples,
                 candidates: candidates
             )
         )
     }
 
-    public func optimize<Inference: AgentInference>(
-        _ inference: Inference.Type,
-        problem: AgentInferenceOptimizationProblem<Inference>
-    ) async throws -> AgentInferenceOptimizationResult {
-        var trials: [AgentInferenceOptimizationTrial] = []
-        var candidateResults: [AgentInferenceOptimizationCandidateResult] = []
+    public func optimize<InferenceType: Inference>(
+        _ inference: InferenceType.Type,
+        problem: InferenceOptimizationProblem<InferenceType>
+    ) async throws -> InferenceOptimizationResult {
+        var trials: [InferenceOptimizationTrial] = []
+        var candidateResults: [InferenceOptimizationCandidateResult] = []
 
         var selectedCandidate = problem.candidates.initial
-        var selectedMean: AgentInferenceOptimizationScore?
+        var selectedMean: InferenceOptimizationScore?
 
         for candidate in problem.candidates {
             let evaluation = try await evaluate(
@@ -135,7 +136,7 @@ public struct AgentInferenceRealizationSearch: Sendable {
             )
 
             candidateResults.append(
-                AgentInferenceOptimizationCandidateResult(
+                InferenceOptimizationCandidateResult(
                     candidate: candidate,
                     mean: evaluation.mean,
                     trialIndexes: Array(
@@ -155,7 +156,7 @@ public struct AgentInferenceRealizationSearch: Sendable {
             }
         }
 
-        return AgentInferenceOptimizationResult(
+        return InferenceOptimizationResult(
             inference: inference.definition.identifier,
             objective: objective.identifier,
             selectedCandidate: selectedCandidate,
@@ -164,12 +165,12 @@ public struct AgentInferenceRealizationSearch: Sendable {
         )
     }
 
-    public func evaluate<Inference: AgentInference>(
-        _ inference: Inference.Type,
-        candidate: AgentInferenceRealizationCandidate,
-        examples: AgentInferenceOptimizationExamples<Inference>
-    ) async throws -> AgentInferenceOptimizationEvaluation {
-        var trials: [AgentInferenceOptimizationTrial] = []
+    public func evaluate<InferenceType: Inference>(
+        _ inference: InferenceType.Type,
+        candidate: InferenceRealizationCandidate,
+        examples: InferenceOptimizationExamples<InferenceType>
+    ) async throws -> InferenceOptimizationEvaluation {
+        var trials: [InferenceOptimizationTrial] = []
         var meanValue = 0.0
         let exampleCount = Double(
             examples.count
@@ -202,7 +203,7 @@ public struct AgentInferenceRealizationSearch: Sendable {
             meanValue += score.value / exampleCount
 
             trials.append(
-                AgentInferenceOptimizationTrial(
+                InferenceOptimizationTrial(
                     candidate: candidate.identifier,
                     exampleIndex: exampleIndex,
                     score: score,
@@ -212,9 +213,9 @@ public struct AgentInferenceRealizationSearch: Sendable {
             )
         }
 
-        return AgentInferenceOptimizationEvaluation(
+        return InferenceOptimizationEvaluation(
             candidate: candidate,
-            mean: try AgentInferenceOptimizationScore(
+            mean: try InferenceOptimizationScore(
                 value: meanValue
             ),
             trials: trials

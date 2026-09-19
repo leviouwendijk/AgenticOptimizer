@@ -1,3 +1,4 @@
+import Agentic
 import AgenticInference
 import AgenticPrograms
 import Foundation
@@ -9,13 +10,8 @@ public extension ProgramOptimization {
         LocalizedError
     {
         case noSites
-        case duplicateSite(AgentInferenceSiteIdentifier)
-        case seedBindingUnavailable(AgentInferenceSiteIdentifier)
-        case inferenceMismatch(
-            site: AgentInferenceSiteIdentifier,
-            seed: AgentInferenceIdentifier,
-            compilation: AgentInferenceIdentifier
-        )
+        case duplicateSite(InferenceSiteIdentifier)
+        case seedBindingUnavailable(InferenceSiteIdentifier)
 
         public var errorDescription: String? {
             switch self {
@@ -27,88 +23,137 @@ public extension ProgramOptimization {
 
             case .seedBindingUnavailable(let site):
                 return "Program optimization compilation seed has no inference binding at site '\(site.rawValue)'."
-
-            case .inferenceMismatch(
-                let site,
-                let seed,
-                let compilation
-            ):
-                return "Program optimization compilation site '\(site.rawValue)' is bound to '\(seed.rawValue)' in the seed realization but the compilation site targets '\(compilation.rawValue)'."
             }
         }
     }
 
-    struct CompilationSite<Program: AgentProgram>:
+    struct CompilationSite<ProgramType: Program>:
         Sendable
     {
-        public let site: AgentInferenceSiteIdentifier
-        public let inference: AgentInferenceIdentifier
+        public let site: InferenceSiteIdentifier
+        public let inference: InferenceIdentifier
+
+        private let seedConfiguration:
+            @Sendable (
+                ProgramRealization<ProgramType>
+            ) -> InferenceRealizationConfiguration?
 
         private let generateCandidates:
             @Sendable (
-                AgentInferenceRealization
-            ) async throws -> [AgentInferenceRealizationCandidate]
+                InferenceRealizationConfiguration
+            ) async throws -> [InferenceRealizationCandidate]
+
+        private let makeSiteCandidates:
+            @Sendable (
+                [InferenceRealizationCandidate]
+            ) -> SiteCandidates<ProgramType>
 
         private init(
-            site: AgentInferenceSiteIdentifier,
-            inference: AgentInferenceIdentifier,
+            site: InferenceSiteIdentifier,
+            inference: InferenceIdentifier,
+            seedConfiguration:
+                @escaping @Sendable (
+                    ProgramRealization<ProgramType>
+                ) -> InferenceRealizationConfiguration?,
             generateCandidates:
                 @escaping @Sendable (
-                    AgentInferenceRealization
-                ) async throws -> [AgentInferenceRealizationCandidate]
+                    InferenceRealizationConfiguration
+                ) async throws -> [InferenceRealizationCandidate],
+            makeSiteCandidates:
+                @escaping @Sendable (
+                    [InferenceRealizationCandidate]
+                ) -> SiteCandidates<ProgramType>
         ) {
             self.site = site
             self.inference = inference
+            self.seedConfiguration = seedConfiguration
             self.generateCandidates = generateCandidates
+            self.makeSiteCandidates = makeSiteCandidates
         }
 
-        public static func parse<Inference: AgentInference>(
-            _ inference: Inference.Type,
-            at site: AgentInferenceSiteIdentifier,
-            examples: [AgentInferenceOptimizationExample<Inference>],
-            generator: any AgentInferenceRealizationCandidateGenerating
+        public static func parse<InferenceType: Inference>(
+            _ site: InferenceSite<
+                ProgramType,
+                InferenceType
+            >,
+            examples: [InferenceOptimizationExample<InferenceType>],
+            generator: any InferenceRealizationCandidateGenerating
         ) throws -> Self {
             let parsedExamples =
-                try AgentInferenceOptimizationExamples<Inference>.parse(
+                try InferenceOptimizationExamples<InferenceType>.parse(
                     examples
                 )
 
             return Self(
-                site: site,
-                inference: inference.definition.identifier,
+                site: site.identifier,
+                inference: site.inference,
+                seedConfiguration: { realization in
+                    guard
+                        let binding = realization.binding(
+                            for: site
+                        ),
+                        binding.inference == site.inference
+                    else {
+                        return nil
+                    }
+
+                    return binding.configuration
+                },
                 generateCandidates: { seed in
                     try await generator.generate(
-                        inference,
+                        InferenceType.self,
                         examples: parsedExamples.values,
                         seed: seed
+                    )
+                },
+                makeSiteCandidates: { candidates in
+                    SiteCandidates(
+                        site,
+                        candidates: candidates
                     )
                 }
             )
         }
 
+        fileprivate func seedConfiguration(
+            in realization: ProgramRealization<ProgramType>
+        ) -> InferenceRealizationConfiguration? {
+            seedConfiguration(
+                realization
+            )
+        }
+
         fileprivate func generate(
-            seed: AgentInferenceRealization
-        ) async throws -> [AgentInferenceRealizationCandidate] {
+            seed: InferenceRealizationConfiguration
+        ) async throws -> [InferenceRealizationCandidate] {
             try await generateCandidates(
                 seed
             )
         }
+
+        fileprivate func siteCandidates(
+            _ candidates: [InferenceRealizationCandidate]
+        ) -> SiteCandidates<ProgramType> {
+            makeSiteCandidates(
+                candidates
+            )
+        }
     }
 
-    struct CompilationPlan<Program: AgentProgram>:
+    struct CompilationPlan<ProgramType: Program>:
         Sendable
     {
-        public let seed: AgentProgramRealization<Program>
-        public let sites: [CompilationSite<Program>]
+        public let seed: ProgramRealization<ProgramType>
+        public let sites: [CompilationSite<ProgramType>]
 
         fileprivate let resolvedSeeds:
-            [AgentInferenceSiteIdentifier: AgentInferenceRealization]
+            [InferenceSiteIdentifier: InferenceRealizationConfiguration]
 
         private init(
-            seed: AgentProgramRealization<Program>,
-            sites: [CompilationSite<Program>],
+            seed: ProgramRealization<ProgramType>,
+            sites: [CompilationSite<ProgramType>],
             resolvedSeeds:
-                [AgentInferenceSiteIdentifier: AgentInferenceRealization]
+                [InferenceSiteIdentifier: InferenceRealizationConfiguration]
         ) {
             self.seed = seed
             self.sites = sites
@@ -116,16 +161,16 @@ public extension ProgramOptimization {
         }
 
         public static func parse(
-            seed: AgentProgramRealization<Program>,
-            sites: [CompilationSite<Program>]
+            seed: ProgramRealization<ProgramType>,
+            sites: [CompilationSite<ProgramType>]
         ) throws -> Self {
             guard !sites.isEmpty else {
                 throw CompilationPlanParsingError.noSites
             }
 
-            var seen: Set<AgentInferenceSiteIdentifier> = []
+            var seen: Set<InferenceSiteIdentifier> = []
             var resolved:
-                [AgentInferenceSiteIdentifier: AgentInferenceRealization] = [:]
+                [InferenceSiteIdentifier: InferenceRealizationConfiguration] = [:]
 
             for site in sites {
                 guard seen.insert(site.site).inserted else {
@@ -134,8 +179,8 @@ public extension ProgramOptimization {
                     )
                 }
 
-                guard let binding = seed.inference(
-                    at: site.site
+                guard let configuration = site.seedConfiguration(
+                    in: seed
                 ) else {
                     throw CompilationPlanParsingError
                         .seedBindingUnavailable(
@@ -143,15 +188,7 @@ public extension ProgramOptimization {
                         )
                 }
 
-                guard binding.inference == site.inference else {
-                    throw CompilationPlanParsingError.inferenceMismatch(
-                        site: site.site,
-                        seed: binding.inference,
-                        compilation: site.inference
-                    )
-                }
-
-                resolved[site.site] = binding.realization
+                resolved[site.site] = configuration
             }
 
             return Self(
@@ -162,23 +199,23 @@ public extension ProgramOptimization {
         }
 
         fileprivate func seedRealization(
-            at site: AgentInferenceSiteIdentifier
-        ) -> AgentInferenceRealization? {
+            at site: InferenceSiteIdentifier
+        ) -> InferenceRealizationConfiguration? {
             resolvedSeeds[site]
         }
     }
 
-    struct CompilationReport<Program: AgentProgram>:
+    struct CompilationReport<ProgramType: Program>:
         Sendable
     {
-        public var selectedRealization: AgentProgramRealization<Program>
-        public var generatedSites: [SiteCandidates]
-        public var optimization: CoordinateReport<Program>
+        public var selectedRealization: ProgramRealization<ProgramType>
+        public var generatedSites: [SiteCandidates<ProgramType>]
+        public var optimization: CoordinateReport<ProgramType>
 
         public init(
-            selectedRealization: AgentProgramRealization<Program>,
-            generatedSites: [SiteCandidates],
-            optimization: CoordinateReport<Program>
+            selectedRealization: ProgramRealization<ProgramType>,
+            generatedSites: [SiteCandidates<ProgramType>],
+            optimization: CoordinateReport<ProgramType>
         ) {
             self.selectedRealization = selectedRealization
             self.generatedSites = generatedSites
@@ -187,16 +224,16 @@ public extension ProgramOptimization {
     }
 }
 
-public struct ProgramOptimizationCompiler<Program: AgentProgram>:
+public struct ProgramOptimizationCompiler<ProgramType: Program>:
     Sendable
 {
-    private let program: Program
-    private let inferenceExecutor: any AgentInferenceExecuting
+    private let program: ProgramType
+    private let inferenceExecutor: any InferenceExecuting
     private let objective: any ProgramOptimization.Objective
 
     public init(
-        program: Program,
-        inferenceExecutor: any AgentInferenceExecuting,
+        program: ProgramType,
+        inferenceExecutor: any InferenceExecuting,
         objective: any ProgramOptimization.Objective
     ) {
         self.program = program
@@ -205,13 +242,13 @@ public struct ProgramOptimizationCompiler<Program: AgentProgram>:
     }
 
     public func compile(
-        dataset: ProgramOptimization.Dataset<Program>,
-        seed: AgentProgramRealization<Program>,
-        sites: [ProgramOptimization.CompilationSite<Program>],
+        dataset: ProgramOptimization.Dataset<ProgramType>,
+        seed: ProgramRealization<ProgramType>,
+        sites: [ProgramOptimization.CompilationSite<ProgramType>],
         maximumPasses: Int = 4
-    ) async throws -> ProgramOptimization.CompilationReport<Program> {
+    ) async throws -> ProgramOptimization.CompilationReport<ProgramType> {
         let plan = try ProgramOptimization
-            .CompilationPlan<Program>
+            .CompilationPlan<ProgramType>
             .parse(
                 seed: seed,
                 sites: sites
@@ -230,11 +267,13 @@ public struct ProgramOptimizationCompiler<Program: AgentProgram>:
     }
 
     public func compile(
-        dataset: ProgramOptimization.Dataset<Program>,
-        plan: ProgramOptimization.CompilationPlan<Program>,
+        dataset: ProgramOptimization.Dataset<ProgramType>,
+        plan: ProgramOptimization.CompilationPlan<ProgramType>,
         passLimit: ProgramOptimization.CoordinatePassLimit = .standard
-    ) async throws -> ProgramOptimization.CompilationReport<Program> {
-        var generatedSites: [ProgramOptimization.SiteCandidates] = []
+    ) async throws -> ProgramOptimization.CompilationReport<ProgramType> {
+        var generatedSites: [
+            ProgramOptimization.SiteCandidates<ProgramType>
+        ] = []
 
         for site in plan.sites {
             guard let seed = plan.seedRealization(
@@ -247,13 +286,12 @@ public struct ProgramOptimizationCompiler<Program: AgentProgram>:
                     )
             }
 
+            let candidates = try await site.generate(
+                seed: seed
+            )
             generatedSites.append(
-                ProgramOptimization.SiteCandidates(
-                    site: site.site,
-                    inference: site.inference,
-                    candidates: try await site.generate(
-                        seed: seed
-                    )
+                site.siteCandidates(
+                    candidates
                 )
             )
         }

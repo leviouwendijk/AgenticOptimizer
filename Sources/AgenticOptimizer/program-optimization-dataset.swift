@@ -1,3 +1,4 @@
+import Agentic
 import AgenticPrograms
 
 public extension ProgramOptimization {
@@ -9,23 +10,23 @@ public extension ProgramOptimization {
         case noEvaluationExamples
     }
 
-    struct Dataset<Program: AgentProgram>:
+    struct Dataset<ProgramType: Program>:
         Sendable
     {
-        public let training: Examples<Program>
-        public let evaluation: Examples<Program>
+        public let training: Examples<ProgramType>
+        public let evaluation: Examples<ProgramType>
 
         public init(
-            training: Examples<Program>,
-            evaluation: Examples<Program>
+            training: Examples<ProgramType>,
+            evaluation: Examples<ProgramType>
         ) {
             self.training = training
             self.evaluation = evaluation
         }
 
         public static func parse(
-            training: [Example<Program>],
-            evaluation: [Example<Program>]
+            training: [Example<ProgramType>],
+            evaluation: [Example<ProgramType>]
         ) throws -> Self {
             guard !training.isEmpty else {
                 throw DatasetParsingError.noTrainingExamples
@@ -46,16 +47,16 @@ public extension ProgramOptimization {
         }
     }
 
-    struct Evaluation<Program: AgentProgram>:
+    struct Evaluation<ProgramType: Program>:
         Sendable
     {
-        public var candidate: Candidate<Program>
-        public var mean: AgentInferenceOptimizationScore
+        public var candidate: Candidate<ProgramType>
+        public var mean: InferenceOptimizationScore
         public var trials: [Trial]
 
         public init(
-            candidate: Candidate<Program>,
-            mean: AgentInferenceOptimizationScore,
+            candidate: Candidate<ProgramType>,
+            mean: InferenceOptimizationScore,
             trials: [Trial]
         ) {
             self.candidate = candidate
@@ -64,30 +65,30 @@ public extension ProgramOptimization {
         }
     }
 
-    struct Report<Program: AgentProgram>:
+    struct Report<ProgramType: Program>:
         Sendable
     {
-        public var optimization: Result<Program>
-        public var evaluation: Evaluation<Program>
+        public var optimization: Result<ProgramType>
+        public var evaluation: Evaluation<ProgramType>
 
         public init(
-            optimization: Result<Program>,
-            evaluation: Evaluation<Program>
+            optimization: Result<ProgramType>,
+            evaluation: Evaluation<ProgramType>
         ) {
             self.optimization = optimization
             self.evaluation = evaluation
         }
     }
 
-    struct CoordinateReport<Program: AgentProgram>:
+    struct CoordinateReport<ProgramType: Program>:
         Sendable
     {
-        public var optimization: CoordinateResult<Program>
-        public var evaluation: Evaluation<Program>
+        public var optimization: CoordinateResult<ProgramType>
+        public var evaluation: Evaluation<ProgramType>
 
         public init(
-            optimization: CoordinateResult<Program>,
-            evaluation: Evaluation<Program>
+            optimization: CoordinateResult<ProgramType>,
+            evaluation: Evaluation<ProgramType>
         ) {
             self.optimization = optimization
             self.evaluation = evaluation

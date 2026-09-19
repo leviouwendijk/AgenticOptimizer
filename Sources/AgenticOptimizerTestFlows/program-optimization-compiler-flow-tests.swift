@@ -1,3 +1,4 @@
+import Agentic
 import AgenticInference
 import AgenticOptimizer
 import AgenticPrograms
@@ -5,63 +6,80 @@ import Foundation
 import Primitives
 import TestFlows
 
-private struct CompilerPrepareInference: AgentInference {
+private struct CompilerPrepareInference: Inference {
     typealias Input = String
     typealias Output = String
 
-    static let definition = AgentInferenceDefinition(
+    static let definition = InferenceDefinition(
         identifier: "fixture.compiler_prepare",
         purpose: "Prepare a value for Program optimization compilation."
     )
 }
 
-private struct CompilerFinalizeInference: AgentInference {
+private struct CompilerFinalizeInference: Inference {
     typealias Input = String
     typealias Output = String
 
-    static let definition = AgentInferenceDefinition(
+    static let definition = InferenceDefinition(
         identifier: "fixture.compiler_finalize",
         purpose: "Finalize a value for Program optimization compilation."
     )
 }
 
-private struct CompilerFixtureProgram: AgentProgram {
+private struct CompilerFixtureProgram: Program {
     typealias Input = String
     typealias Output = String
 
-    static let descriptor = AgentProgramDescriptor(
+    static let definition = ProgramDefinition(
         identifier: "fixture.optimization_compiler",
-        title: "Optimization Compiler Fixture",
-        summary: "Two-site Program compiled from typed per-site candidate generators."
+        purpose: "Two-site Program compiled from typed per-site candidate generators."
+    )
+
+    static let prepare = InferenceSite<
+        Self,
+        CompilerPrepareInference
+    >(
+        identifier: .init(
+            rawValue: "prepare"
+        )
+    )
+
+    static let finalize = InferenceSite<
+        Self,
+        CompilerFinalizeInference
+    >(
+        identifier: .init(
+            rawValue: "finalize"
+        )
     )
 
     func run(
         _ input: String,
-        in context: AgentProgramContext
+        in context: ProgramContext
     ) async throws -> String {
         let prepared = try await context.infer(
-            CompilerPrepareInference.self,
-            at: "prepare",
+            Self.prepare,
             input: input
         )
 
         return try await context.infer(
-            CompilerFinalizeInference.self,
-            at: "finalize",
+            Self.finalize,
             input: prepared
         )
     }
 }
 
 private struct CompilerFixtureExecutor:
-    AgentInferenceExecuting,
+    InferenceExecuting,
     Sendable
 {
-    func execute<Inference: AgentInference>(
-        _ inference: Inference.Type,
-        input: Inference.Input,
-        realization: AgentInferenceRealization
-    ) async throws -> AgentInferenceExecutionResult<Inference.Output> {
+    func execute<InferenceType: Inference>(
+        _ inference: InferenceType.Type,
+        input: InferenceType.Input,
+        realization: InferenceRealizationConfiguration,
+        context: InferenceExecutionContext
+    ) async throws -> InferenceExecutionResult<InferenceType.Output> {
+        _ = context
         let inputData = try JSONEncoder().encode(
             input
         )
@@ -92,13 +110,13 @@ private struct CompilerFixtureExecutor:
             outputText
         )
         let output = try JSONDecoder().decode(
-            Inference.Output.self,
+            InferenceType.Output.self,
             from: outputData
         )
 
-        return AgentInferenceExecutionResult(
+        return InferenceExecutionResult(
             output: output,
-            record: AgentInferenceExecutionRecord(
+            record: InferenceExecutionRecord(
                 inference: inference.definition.identifier,
                 strategy: realization.strategy,
                 budget: realization.budget
@@ -114,11 +132,11 @@ private struct CompilerProgramObjective:
     let id: ProgramOptimization.ObjectiveID =
         "compiler_progress"
 
-    func score<Program: AgentProgram>(
-        _ program: Program.Type,
-        example: ProgramOptimization.Example<Program>,
-        output: Program.Output
-    ) async throws -> AgentInferenceOptimizationScore {
+    func score<ProgramType: Program>(
+        _ program: ProgramType.Type,
+        example: ProgramOptimization.Example<ProgramType>,
+        output: ProgramType.Output
+    ) async throws -> InferenceOptimizationScore {
         let expectedData = try JSONEncoder().encode(
             example.expectedOutput
         )
@@ -149,7 +167,7 @@ private struct CompilerProgramObjective:
             value = 0.0
         }
 
-        return try AgentInferenceOptimizationScore(
+        return try InferenceOptimizationScore(
             value: value,
             metadata: [
                 "expected": expected,
@@ -166,47 +184,44 @@ private enum CompilerFixtureError:
     case unknownInstructions(String)
 }
 
-extension AgenticOptimizerFlowTesting {
+extension OptimizerFlowTesting {
     static func runProgramOptimizationCompiler()
         async throws
         -> [TestFlowDiagnostic]
     {
-        let identity = AgentInferenceRealization(
+        let identity = InferenceRealizationConfiguration(
             strategy: .direct,
-            modelSelection: .executor,
             instructions: "identity",
             budget: .singleAttempt
         )
 
-        let seed = AgentProgramRealization<CompilerFixtureProgram>(
-            id: "fixture.compiler_seed",
-            inferences: try AgentProgramInferenceBindings(
-                [
-                    AgentInferenceRealizationBinding(
-                        site: "prepare",
-                        inference:
-                            CompilerPrepareInference.definition.identifier,
-                        realization: identity
-                    ),
-                    AgentInferenceRealizationBinding(
-                        site: "finalize",
-                        inference:
-                            CompilerFinalizeInference.definition.identifier,
-                        realization: identity
-                    ),
-                ]
-            ),
-            metadata: [
-                "seed_marker": "preserved",
+        let seed = try ProgramRealization<CompilerFixtureProgram>(
+            bindings: [
+                .init(
+                    CompilerFixtureProgram.prepare,
+                    realization: fixtureInferenceRealization(
+                        CompilerPrepareInference.self,
+                        identifier: "prepare.identity",
+                        configuration: identity
+                    )
+                ),
+                .init(
+                    CompilerFixtureProgram.finalize,
+                    realization: fixtureInferenceRealization(
+                        CompilerFinalizeInference.self,
+                        identifier: "finalize.identity",
+                        configuration: identity
+                    )
+                )
             ]
         )
 
         let prepareGenerator =
-            try AgentInferenceInstructionVariantGenerator.parse(
+            try InferenceInstructionVariantGenerator.parse(
                 variants: [
-                    AgentInferenceInstructionVariant(
+                    InferenceInstructionVariant(
                         identifier:
-                            AgentInferenceRealizationCandidateIdentifier(
+                            InferenceRealizationCandidateIdentifier(
                                 rawValue: "prepare_uppercase"
                             ),
                         instructions: "uppercase",
@@ -217,16 +232,16 @@ extension AgenticOptimizerFlowTesting {
                 ],
                 includeSeed: true,
                 seedIdentifier:
-                    AgentInferenceRealizationCandidateIdentifier(
+                    InferenceRealizationCandidateIdentifier(
                         rawValue: "prepare_identity"
                     )
             )
         let finalizeGenerator =
-            try AgentInferenceInstructionVariantGenerator.parse(
+            try InferenceInstructionVariantGenerator.parse(
                 variants: [
-                    AgentInferenceInstructionVariant(
+                    InferenceInstructionVariant(
                         identifier:
-                            AgentInferenceRealizationCandidateIdentifier(
+                            InferenceRealizationCandidateIdentifier(
                                 rawValue: "finalize_exclaim"
                             ),
                         instructions: "exclaim",
@@ -237,7 +252,7 @@ extension AgenticOptimizerFlowTesting {
                 ],
                 includeSeed: true,
                 seedIdentifier:
-                    AgentInferenceRealizationCandidateIdentifier(
+                    InferenceRealizationCandidateIdentifier(
                         rawValue: "finalize_identity"
                     )
             )
@@ -246,8 +261,7 @@ extension AgenticOptimizerFlowTesting {
             try ProgramOptimization
                 .CompilationSite<CompilerFixtureProgram>
                 .parse(
-                    CompilerPrepareInference.self,
-                    at: "prepare",
+                    CompilerFixtureProgram.prepare,
                     examples: [
                         .init(
                             input: "alpha",
@@ -264,8 +278,7 @@ extension AgenticOptimizerFlowTesting {
             try ProgramOptimization
                 .CompilationSite<CompilerFixtureProgram>
                 .parse(
-                    CompilerFinalizeInference.self,
-                    at: "finalize",
+                    CompilerFixtureProgram.finalize,
                     examples: [
                         .init(
                             input: "ALPHA",
@@ -336,28 +349,23 @@ extension AgenticOptimizerFlowTesting {
         )
         try Expect.equal(
             report.selectedRealization
-                .realization(
-                    at: "prepare"
+                .binding(
+                    for: CompilerFixtureProgram.prepare
                 )?
+                .configuration
                 .instructions,
             "uppercase",
             "compiler selects the improved prepare-site realization"
         )
         try Expect.equal(
             report.selectedRealization
-                .realization(
-                    at: "finalize"
+                .binding(
+                    for: CompilerFixtureProgram.finalize
                 )?
+                .configuration
                 .instructions,
             "exclaim",
             "compiler selects the improved finalize-site realization"
-        )
-        try Expect.equal(
-            report.selectedRealization.metadata[
-                "seed_marker"
-            ],
-            "preserved",
-            "optimization compilation preserves seed Program realization metadata"
         )
         try Expect.equal(
             report.optimization.optimization.score.value,
@@ -407,19 +415,17 @@ extension AgenticOptimizerFlowTesting {
         var missingSeedBindingRejected = false
 
         let missingBindingSeed =
-            AgentProgramRealization<CompilerFixtureProgram>(
-                id: "fixture.compiler_missing_binding",
-                inferences: try AgentProgramInferenceBindings(
-                    [
-                        AgentInferenceRealizationBinding(
-                            site: "prepare",
-                            inference:
-                                CompilerPrepareInference
-                                    .definition.identifier,
-                            realization: identity
-                        ),
-                    ]
-                )
+            try ProgramRealization<CompilerFixtureProgram>(
+                bindings: [
+                    .init(
+                        CompilerFixtureProgram.prepare,
+                        realization: fixtureInferenceRealization(
+                            CompilerPrepareInference.self,
+                            identifier: "prepare.identity",
+                            configuration: identity
+                        )
+                    )
+                ]
             )
 
         do {
@@ -451,18 +457,20 @@ extension AgenticOptimizerFlowTesting {
             .field(
                 "selected_prepare",
                 report.selectedRealization
-                    .realization(
-                        at: "prepare"
+                    .binding(
+                        for: CompilerFixtureProgram.prepare
                     )?
+                    .configuration
                     .instructions
                     ?? "none"
             ),
             .field(
                 "selected_finalize",
                 report.selectedRealization
-                    .realization(
-                        at: "finalize"
+                    .binding(
+                        for: CompilerFixtureProgram.finalize
                     )?
+                    .configuration
                     .instructions
                     ?? "none"
             ),

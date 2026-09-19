@@ -1,15 +1,16 @@
+import Agentic
 import TestFlows
 
 @main
-enum AgenticOptimizerTestMain {
+enum OptimizerTestMain {
     static func main() async {
         await TestFlowCLI.run(
-            suite: AgenticOptimizerFlowSuite.self
+            suite: OptimizerFlowSuite.self
         )
     }
 }
 
-enum AgenticOptimizerFlowSuite: TestFlowRegistry {
+enum OptimizerFlowSuite: TestFlowRegistry {
     static let title = "AgenticOptimizer flow tests"
 
     static let flows: [TestFlow] = [
@@ -23,7 +24,7 @@ enum AgenticOptimizerFlowSuite: TestFlowRegistry {
                 "objective",
             ]
         ) {
-            try await AgenticOptimizerFlowTesting
+            try await OptimizerFlowTesting
                 .runInferenceRealizationSearch()
         },
         TestFlow(
@@ -37,7 +38,7 @@ enum AgenticOptimizerFlowSuite: TestFlowRegistry {
                 "search",
             ]
         ) {
-            try await AgenticOptimizerFlowTesting
+            try await OptimizerFlowTesting
                 .runInstructionCandidateGeneration()
         },
         TestFlow(
@@ -51,7 +52,7 @@ enum AgenticOptimizerFlowSuite: TestFlowRegistry {
                 "instructions",
             ]
         ) {
-            try await AgenticOptimizerFlowTesting
+            try await OptimizerFlowTesting
                 .runInferenceInstructionProposal()
         },
         TestFlow(
@@ -65,7 +66,7 @@ enum AgenticOptimizerFlowSuite: TestFlowRegistry {
                 "search",
             ]
         ) {
-            try await AgenticOptimizerFlowTesting
+            try await OptimizerFlowTesting
                 .runDemonstrationOptimization()
         },
         TestFlow(
@@ -79,7 +80,7 @@ enum AgenticOptimizerFlowSuite: TestFlowRegistry {
                 "teacher",
             ]
         ) {
-            try await AgenticOptimizerFlowTesting
+            try await OptimizerFlowTesting
                 .runDemonstrationBootstrap()
         },
         TestFlow(
@@ -93,7 +94,7 @@ enum AgenticOptimizerFlowSuite: TestFlowRegistry {
                 "search",
             ]
         ) {
-            try await AgenticOptimizerFlowTesting
+            try await OptimizerFlowTesting
                 .runProgramRealizationOptimization()
         },
         TestFlow(
@@ -108,7 +109,7 @@ enum AgenticOptimizerFlowSuite: TestFlowRegistry {
                 "provenance",
             ]
         ) {
-            try await AgenticOptimizerFlowTesting
+            try await OptimizerFlowTesting
                 .runProgramCandidateGeneration()
         },
         TestFlow(
@@ -122,7 +123,7 @@ enum AgenticOptimizerFlowSuite: TestFlowRegistry {
                 "problem",
             ]
         ) {
-            try await AgenticOptimizerFlowTesting
+            try await OptimizerFlowTesting
                 .runOptimizationInputParsing()
         },
         TestFlow(
@@ -138,7 +139,7 @@ enum AgenticOptimizerFlowSuite: TestFlowRegistry {
                 "provenance",
             ]
         ) {
-            try await AgenticOptimizerFlowTesting
+            try await OptimizerFlowTesting
                 .runProgramCoordinateOptimization()
         },
         TestFlow(
@@ -154,7 +155,7 @@ enum AgenticOptimizerFlowSuite: TestFlowRegistry {
                 "coordinate",
             ]
         ) {
-            try await AgenticOptimizerFlowTesting
+            try await OptimizerFlowTesting
                 .runHeldOutEvaluation()
         },
         TestFlow(
@@ -171,7 +172,7 @@ enum AgenticOptimizerFlowSuite: TestFlowRegistry {
                 "program",
             ]
         ) {
-            try await AgenticOptimizerFlowTesting
+            try await OptimizerFlowTesting
                 .runMultiObjectiveOptimization()
         },
         TestFlow(
@@ -187,7 +188,7 @@ enum AgenticOptimizerFlowSuite: TestFlowRegistry {
                 "provenance",
             ]
         ) {
-            try await AgenticOptimizerFlowTesting
+            try await OptimizerFlowTesting
                 .runProgramOptimizationCompiler()
         },
     ]

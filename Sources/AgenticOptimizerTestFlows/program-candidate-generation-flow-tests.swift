@@ -1,66 +1,84 @@
+import Agentic
 import AgenticInference
 import AgenticOptimizer
 import AgenticPrograms
 import Foundation
 import TestFlows
 
-private struct CombinationPrepareInference: AgentInference {
+private struct CombinationPrepareInference: Inference {
     typealias Input = String
     typealias Output = String
 
-    static let definition = AgentInferenceDefinition(
+    static let definition = InferenceDefinition(
         identifier: "fixture.combination_prepare",
         purpose: "Prepare a value for bounded program candidate generation."
     )
 }
 
-private struct CombinationFinalizeInference: AgentInference {
+private struct CombinationFinalizeInference: Inference {
     typealias Input = String
     typealias Output = String
 
-    static let definition = AgentInferenceDefinition(
+    static let definition = InferenceDefinition(
         identifier: "fixture.combination_finalize",
         purpose: "Finalize a value for bounded program candidate generation."
     )
 }
 
-private struct CombinationFixtureProgram: AgentProgram {
+private struct CombinationFixtureProgram: Program {
     typealias Input = String
     typealias Output = String
 
-    static let descriptor = AgentProgramDescriptor(
+    static let definition = ProgramDefinition(
         identifier: "fixture.program_candidate_generation",
-        title: "Program Candidate Generation Fixture",
-        summary: "Two-stage program used to prove bounded inference-site combination generation."
+        purpose: "Two-stage program used to prove bounded inference-site combination generation."
+    )
+
+    static let prepare = InferenceSite<
+        Self,
+        CombinationPrepareInference
+    >(
+        identifier: .init(
+            rawValue: "prepare"
+        )
+    )
+
+    static let finalize = InferenceSite<
+        Self,
+        CombinationFinalizeInference
+    >(
+        identifier: .init(
+            rawValue: "finalize"
+        )
     )
 
     func run(
         _ input: String,
-        in context: AgentProgramContext
+        in context: ProgramContext
     ) async throws -> String {
         let prepared = try await context.infer(
-            CombinationPrepareInference.self,
-            at: "prepare",
+            Self.prepare,
             input: input
         )
 
         return try await context.infer(
-            CombinationFinalizeInference.self,
-            at: "finalize",
+            Self.finalize,
             input: prepared
         )
     }
 }
 
 private struct CombinationFixtureExecutor:
-    AgentInferenceExecuting,
+    InferenceExecuting,
     Sendable
 {
-    func execute<Inference: AgentInference>(
-        _ inference: Inference.Type,
-        input: Inference.Input,
-        realization: AgentInferenceRealization
-    ) async throws -> AgentInferenceExecutionResult<Inference.Output> {
+    func execute<InferenceType: Inference>(
+        _ inference: InferenceType.Type,
+        input: InferenceType.Input,
+        realization: InferenceRealizationConfiguration,
+        context: InferenceExecutionContext
+    ) async throws -> InferenceExecutionResult<InferenceType.Output> {
+        _ = context
         let inputData = try JSONEncoder().encode(
             input
         )
@@ -91,13 +109,13 @@ private struct CombinationFixtureExecutor:
             outputText
         )
         let output = try JSONDecoder().decode(
-            Inference.Output.self,
+            InferenceType.Output.self,
             from: outputData
         )
 
-        return AgentInferenceExecutionResult(
+        return InferenceExecutionResult(
             output: output,
-            record: AgentInferenceExecutionRecord(
+            record: InferenceExecutionRecord(
                 inference: inference.definition.identifier,
                 strategy: realization.strategy,
                 budget: realization.budget,
@@ -114,11 +132,11 @@ private struct CombinationExactObjective:
     let id: ProgramOptimization.ObjectiveID =
         "combination_exact_output"
 
-    func score<Program: AgentProgram>(
-        _ program: Program.Type,
-        example: ProgramOptimization.Example<Program>,
-        output: Program.Output
-    ) async throws -> AgentInferenceOptimizationScore {
+    func score<ProgramType: Program>(
+        _ program: ProgramType.Type,
+        example: ProgramOptimization.Example<ProgramType>,
+        output: ProgramType.Output
+    ) async throws -> InferenceOptimizationScore {
         let expectedData = try JSONEncoder().encode(
             example.expectedOutput
         )
@@ -134,7 +152,7 @@ private struct CombinationExactObjective:
             from: actualData
         )
 
-        return try AgentInferenceOptimizationScore(
+        return try InferenceOptimizationScore(
             value: expected == actual ? 1.0 : 0.0
         )
     }
@@ -147,62 +165,58 @@ private enum CombinationFixtureError:
     case unknownInstructions(String)
 }
 
-extension AgenticOptimizerFlowTesting {
+extension OptimizerFlowTesting {
     static func runProgramCandidateGeneration()
         async throws
         -> [TestFlowDiagnostic]
     {
-        let identity = AgentInferenceRealization(
+        let identity = InferenceRealizationConfiguration(
             strategy: .direct,
-            modelSelection: .executor,
             instructions: "identity",
             budget: .singleAttempt
         )
-        let uppercase = AgentInferenceRealization(
+        let uppercase = InferenceRealizationConfiguration(
             strategy: .direct,
-            modelSelection: .executor,
             instructions: "uppercase",
             budget: .singleAttempt
         )
-        let constant = AgentInferenceRealization(
+        let constant = InferenceRealizationConfiguration(
             strategy: .direct,
-            modelSelection: .executor,
             instructions: "constant",
             budget: .singleAttempt
         )
 
-        let seed = AgentProgramRealization<CombinationFixtureProgram>(
-            id: "fixture.program.combination_seed",
-            inferences: try AgentProgramInferenceBindings(
-                [
-                    AgentInferenceRealizationBinding(
-                        site: "prepare",
-                        inference: CombinationPrepareInference.definition.identifier,
-                        realization: identity
-                    ),
-                    AgentInferenceRealizationBinding(
-                        site: "finalize",
-                        inference: CombinationFinalizeInference.definition.identifier,
-                        realization: identity
-                    ),
-                ]
-            ),
-            metadata: [
-                "seed_marker": "preserved",
+        let seed = try ProgramRealization<CombinationFixtureProgram>(
+            bindings: [
+                .init(
+                    CombinationFixtureProgram.prepare,
+                    realization: fixtureInferenceRealization(
+                        CombinationPrepareInference.self,
+                        identifier: "prepare.identity",
+                        configuration: identity
+                    )
+                ),
+                .init(
+                    CombinationFixtureProgram.finalize,
+                    realization: fixtureInferenceRealization(
+                        CombinationFinalizeInference.self,
+                        identifier: "finalize.identity",
+                        configuration: identity
+                    )
+                )
             ]
         )
 
-        let sites: [ProgramOptimization.SiteCandidates] = [
+        let sites: [ProgramOptimization.SiteCandidates<CombinationFixtureProgram>] = [
             .init(
-                site: "prepare",
-                inference: CombinationPrepareInference.definition.identifier,
+                CombinationFixtureProgram.prepare,
                 candidates: [
-                    AgentInferenceRealizationCandidate(
+                    InferenceRealizationCandidate(
                         identifier: "prepare_identity",
                         realization: identity,
                         source: .seed
                     ),
-                    AgentInferenceRealizationCandidate(
+                    InferenceRealizationCandidate(
                         identifier: "prepare_uppercase",
                         realization: uppercase,
                         source: .instruction_variant,
@@ -213,15 +227,14 @@ extension AgenticOptimizerFlowTesting {
                 ]
             ),
             .init(
-                site: "finalize",
-                inference: CombinationFinalizeInference.definition.identifier,
+                CombinationFixtureProgram.finalize,
                 candidates: [
-                    AgentInferenceRealizationCandidate(
+                    InferenceRealizationCandidate(
                         identifier: "finalize_identity",
                         realization: identity,
                         source: .seed
                     ),
-                    AgentInferenceRealizationCandidate(
+                    InferenceRealizationCandidate(
                         identifier: "finalize_uppercase",
                         realization: uppercase,
                         source: .demonstration_variant,
@@ -229,7 +242,7 @@ extension AgenticOptimizerFlowTesting {
                             "origin": "finalize_optimizer",
                         ]
                     ),
-                    AgentInferenceRealizationCandidate(
+                    InferenceRealizationCandidate(
                         identifier: "finalize_constant",
                         realization: constant,
                         source: .supplied
@@ -323,23 +336,16 @@ extension AgenticOptimizerFlowTesting {
             "whole-program candidate retains exact inference candidate metadata"
         )
         try Expect.equal(
-            generated[1].realization.metadata[
-                "seed_marker"
-            ],
-            "preserved",
-            "combination generation preserves program realization metadata"
-        )
-        try Expect.equal(
-            generated[1].realization.realization(
-                at: "prepare"
-            )?.instructions,
+            generated[1].realization.binding(
+                for: CombinationFixtureProgram.prepare
+            )?.configuration.instructions,
             "identity",
             "generated program realization installs the selected prepare realization"
         )
         try Expect.equal(
-            generated[1].realization.realization(
-                at: "finalize"
-            )?.instructions,
+            generated[1].realization.binding(
+                for: CombinationFixtureProgram.finalize
+            )?.configuration.instructions,
             "uppercase",
             "generated program realization installs the selected finalize realization"
         )
@@ -407,14 +413,14 @@ extension AgenticOptimizerFlowTesting {
         )
         try Expect.equal(
             result.selected.selections[0].candidate.identifier,
-            AgentInferenceRealizationCandidateIdentifier(
+            InferenceRealizationCandidateIdentifier(
                 "prepare_identity"
             ),
             "selected result retains prepare-site inference candidate provenance"
         )
         try Expect.equal(
             result.selected.selections[1].candidate.identifier,
-            AgentInferenceRealizationCandidateIdentifier(
+            InferenceRealizationCandidateIdentifier(
                 "finalize_uppercase"
             ),
             "selected result retains finalize-site inference candidate provenance"
@@ -457,8 +463,7 @@ extension AgenticOptimizerFlowTesting {
                     seed: seed,
                     sites: [
                         ProgramOptimization.SiteCandidates(
-                            site: "prepare",
-                            inference: CombinationPrepareInference.definition.identifier,
+                            CombinationFixtureProgram.prepare,
                             candidates: []
                         ),
                     ]

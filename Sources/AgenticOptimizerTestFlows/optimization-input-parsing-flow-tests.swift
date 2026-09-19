@@ -1,50 +1,50 @@
+import Agentic
 import AgenticInference
 import AgenticOptimizer
 import AgenticPrograms
 import Foundation
 import TestFlows
 
-private struct OptimizationInputParsingInference: AgentInference {
+private struct OptimizationInputParsingInference: Inference {
     typealias Input = String
     typealias Output = String
 
-    static let definition = AgentInferenceDefinition(
+    static let definition = InferenceDefinition(
         identifier: "fixture.optimization_input_parsing",
         purpose: "Exercise parsed optimizer inputs."
     )
 }
 
-private struct OptimizationInputParsingProgram: AgentProgram {
+private struct OptimizationInputParsingProgram: Program {
     typealias Input = String
     typealias Output = String
 
-    static let descriptor = AgentProgramDescriptor(
+    static let definition = ProgramDefinition(
         identifier: "fixture.optimization_input_parsing_program",
-        title: "Optimization Input Parsing Fixture",
-        summary: "Exercise parsed whole-program optimizer inputs."
+        purpose: "Exercise parsed whole-program optimizer inputs."
     )
 
     func run(
         _ input: String,
-        in context: AgentProgramContext
+        in context: ProgramContext
     ) async throws -> String {
         input
     }
 }
 
-extension AgenticOptimizerFlowTesting {
+extension OptimizerFlowTesting {
     static func runOptimizationInputParsing()
         async throws
         -> [TestFlowDiagnostic]
     {
-        let score = try AgentInferenceOptimizationScore(
+        let score = try InferenceOptimizationScore(
             value: 1.0,
             metadata: [
                 "marker": "finite",
             ]
         )
         let decodedScore = try JSONDecoder().decode(
-            AgentInferenceOptimizationScore.self,
+            InferenceOptimizationScore.self,
             from: JSONEncoder().encode(
                 score
             )
@@ -59,10 +59,10 @@ extension AgenticOptimizerFlowTesting {
         var nonFiniteScoreRejected = false
 
         do {
-            _ = try AgentInferenceOptimizationScore(
+            _ = try InferenceOptimizationScore(
                 value: .nan
             )
-        } catch AgentInferenceOptimizationScoreParsingError
+        } catch InferenceOptimizationScoreParsingError
             .nonFinite {
             nonFiniteScoreRejected = true
         }
@@ -92,10 +92,10 @@ extension AgenticOptimizerFlowTesting {
 
         do {
             _ = try scoreDecoder.decode(
-                AgentInferenceOptimizationScore.self,
+                InferenceOptimizationScore.self,
                 from: invalidScoreData
             )
-        } catch AgentInferenceOptimizationScoreParsingError
+        } catch InferenceOptimizationScoreParsingError
             .nonFinite {
             nonFiniteScoreDecodeRejected = true
         }
@@ -147,25 +147,24 @@ extension AgenticOptimizerFlowTesting {
             "candidate-limit decoding cannot bypass positive-value parsing"
         )
 
-        let realization = AgentInferenceRealization(
+        let realization = InferenceRealizationConfiguration(
             strategy: .direct,
-            modelSelection: .executor,
             instructions: "fixture",
             budget: .singleAttempt
         )
-        let inferenceCandidate = AgentInferenceRealizationCandidate(
+        let inferenceCandidate = InferenceRealizationCandidate(
             identifier: "candidate",
             realization: realization
         )
         let inferenceExample =
-            AgentInferenceOptimizationExample<
+            InferenceOptimizationExample<
                 OptimizationInputParsingInference
             >(
                 input: "input",
                 expectedOutput: "output"
             )
         let inferenceProblem =
-            try AgentInferenceOptimizationProblem<
+            try InferenceOptimizationProblem<
                 OptimizationInputParsingInference
             >.parse(
                 examples: [
@@ -190,7 +189,7 @@ extension AgenticOptimizerFlowTesting {
         var emptyInferenceExamplesRejected = false
 
         do {
-            _ = try AgentInferenceOptimizationProblem<
+            _ = try InferenceOptimizationProblem<
                 OptimizationInputParsingInference
             >.parse(
                 examples: [],
@@ -198,7 +197,7 @@ extension AgenticOptimizerFlowTesting {
                     inferenceCandidate,
                 ]
             )
-        } catch AgentInferenceOptimizationProblemParsingError
+        } catch InferenceOptimizationProblemParsingError
             .noExamples {
             emptyInferenceExamplesRejected = true
         }
@@ -206,7 +205,7 @@ extension AgenticOptimizerFlowTesting {
         var emptyInferenceCandidatesRejected = false
 
         do {
-            _ = try AgentInferenceOptimizationProblem<
+            _ = try InferenceOptimizationProblem<
                 OptimizationInputParsingInference
             >.parse(
                 examples: [
@@ -214,7 +213,7 @@ extension AgenticOptimizerFlowTesting {
                 ],
                 candidates: []
             )
-        } catch AgentInferenceOptimizationProblemParsingError
+        } catch InferenceOptimizationProblemParsingError
             .noCandidates {
             emptyInferenceCandidatesRejected = true
         }
@@ -222,7 +221,7 @@ extension AgenticOptimizerFlowTesting {
         var duplicateInferenceCandidateRejected = false
 
         do {
-            _ = try AgentInferenceOptimizationProblem<
+            _ = try InferenceOptimizationProblem<
                 OptimizationInputParsingInference
             >.parse(
                 examples: [
@@ -233,7 +232,7 @@ extension AgenticOptimizerFlowTesting {
                     inferenceCandidate,
                 ]
             )
-        } catch AgentInferenceOptimizationProblemParsingError
+        } catch InferenceOptimizationProblemParsingError
             .duplicateCandidateIdentifier(let identifier) {
             duplicateInferenceCandidateRejected =
                 identifier == inferenceCandidate.identifier
@@ -245,11 +244,7 @@ extension AgenticOptimizerFlowTesting {
             >(
                 id: "program_candidate",
                 realization:
-                    AgentProgramRealization<
-                        OptimizationInputParsingProgram
-                    >(
-                        id: "fixture.program.realization"
-                    )
+                    try ProgramRealization<OptimizationInputParsingProgram>()
             )
         let programExample =
             ProgramOptimization.Example<

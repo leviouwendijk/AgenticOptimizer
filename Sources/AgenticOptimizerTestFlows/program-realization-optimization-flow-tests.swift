@@ -1,59 +1,75 @@
+import Agentic
 import AgenticInference
 import AgenticOptimizer
 import AgenticPrograms
 import Foundation
 import TestFlows
 
-private struct PrepareProgramInference: AgentInference {
+private struct PrepareProgramInference: Inference {
     typealias Input = String
     typealias Output = String
 
-    static let definition = AgentInferenceDefinition(
+    static let definition = InferenceDefinition(
         identifier: "fixture.program_prepare",
         purpose: "Prepare a value for the next program stage."
     )
 }
 
-private struct FinalizeProgramInference: AgentInference {
+private struct FinalizeProgramInference: Inference {
     typealias Input = String
     typealias Output = String
 
-    static let definition = AgentInferenceDefinition(
+    static let definition = InferenceDefinition(
         identifier: "fixture.program_finalize",
         purpose: "Finalize a prepared program value."
     )
 }
 
-private struct OptimizationFixtureProgram: AgentProgram {
+private struct OptimizationFixtureProgram: Program {
     typealias Input = String
     typealias Output = String
 
-    static let descriptor = AgentProgramDescriptor(
+    static let definition = ProgramDefinition(
         identifier: "fixture.program_optimization",
-        title: "Program Optimization Fixture",
-        summary: "Two-stage inference program used to prove whole-program realization optimization."
+        purpose: "Two-stage inference program used to prove whole-program realization optimization."
+    )
+
+    static let prepare = InferenceSite<
+        Self,
+        PrepareProgramInference
+    >(
+        identifier: .init(
+            rawValue: "prepare"
+        )
+    )
+
+    static let finalize = InferenceSite<
+        Self,
+        FinalizeProgramInference
+    >(
+        identifier: .init(
+            rawValue: "finalize"
+        )
     )
 
     func run(
         _ input: String,
-        in context: AgentProgramContext
+        in context: ProgramContext
     ) async throws -> String {
         let prepared = try await context.infer(
-            PrepareProgramInference.self,
-            at: "prepare",
+            Self.prepare,
             input: input
         )
 
         return try await context.infer(
-            FinalizeProgramInference.self,
-            at: "finalize",
+            Self.finalize,
             input: prepared
         )
     }
 }
 
 private struct ProgramExecutionObservation: Sendable {
-    var inference: AgentInferenceIdentifier
+    var inference: InferenceIdentifier
     var instructions: String
 }
 
@@ -74,16 +90,18 @@ private actor ProgramExecutionRecorder {
 }
 
 private struct ProgramOptimizationFixtureExecutor:
-    AgentInferenceExecuting,
+    InferenceExecuting,
     Sendable
 {
     let recorder: ProgramExecutionRecorder
 
-    func execute<Inference: AgentInference>(
-        _ inference: Inference.Type,
-        input: Inference.Input,
-        realization: AgentInferenceRealization
-    ) async throws -> AgentInferenceExecutionResult<Inference.Output> {
+    func execute<InferenceType: Inference>(
+        _ inference: InferenceType.Type,
+        input: InferenceType.Input,
+        realization: InferenceRealizationConfiguration,
+        context: InferenceExecutionContext
+    ) async throws -> InferenceExecutionResult<InferenceType.Output> {
+        _ = context
         await recorder.append(
             ProgramExecutionObservation(
                 inference: inference.definition.identifier,
@@ -119,13 +137,13 @@ private struct ProgramOptimizationFixtureExecutor:
             outputText
         )
         let output = try JSONDecoder().decode(
-            Inference.Output.self,
+            InferenceType.Output.self,
             from: outputData
         )
 
-        return AgentInferenceExecutionResult(
+        return InferenceExecutionResult(
             output: output,
-            record: AgentInferenceExecutionRecord(
+            record: InferenceExecutionRecord(
                 inference: inference.definition.identifier,
                 strategy: realization.strategy,
                 budget: realization.budget,
@@ -142,11 +160,11 @@ private struct ProgramExactObjective:
     let id: ProgramOptimization.ObjectiveID =
         "exact_program_output"
 
-    func score<Program: AgentProgram>(
-        _ program: Program.Type,
-        example: ProgramOptimization.Example<Program>,
-        output: Program.Output
-    ) async throws -> AgentInferenceOptimizationScore {
+    func score<ProgramType: Program>(
+        _ program: ProgramType.Type,
+        example: ProgramOptimization.Example<ProgramType>,
+        output: ProgramType.Output
+    ) async throws -> InferenceOptimizationScore {
         let expectedData = try JSONEncoder().encode(
             example.expectedOutput
         )
@@ -163,7 +181,7 @@ private struct ProgramExactObjective:
             from: outputData
         )
 
-        return try AgentInferenceOptimizationScore(
+        return try InferenceOptimizationScore(
             value: expected == actual ? 1.0 : 0.0,
             metadata: [
                 "expected": expected,
@@ -180,7 +198,7 @@ private enum ProgramOptimizationFixtureError:
     case unknownInstructions(String)
 }
 
-extension AgenticOptimizerFlowTesting {
+extension OptimizerFlowTesting {
     static func runProgramRealizationOptimization()
         async throws
         -> [TestFlowDiagnostic]
@@ -198,15 +216,13 @@ extension AgenticOptimizerFlowTesting {
             ),
         ]
 
-        let identity = AgentInferenceRealization(
+        let identity = InferenceRealizationConfiguration(
             strategy: .direct,
-            modelSelection: .executor,
             instructions: "identity",
             budget: .singleAttempt
         )
-        let uppercase = AgentInferenceRealization(
+        let uppercase = InferenceRealizationConfiguration(
             strategy: .direct,
-            modelSelection: .executor,
             instructions: "uppercase",
             budget: .singleAttempt
         )
@@ -216,62 +232,71 @@ extension AgenticOptimizerFlowTesting {
         ] = [
             .init(
                 id: "baseline",
-                realization: AgentProgramRealization(
-                    id: "fixture.program.baseline",
-                    inferences: try AgentProgramInferenceBindings(
-                        [
-                            AgentInferenceRealizationBinding(
-                                site: "prepare",
-                                inference: PrepareProgramInference.definition.identifier,
-                                realization: identity
-                            ),
-                            AgentInferenceRealizationBinding(
-                                site: "finalize",
-                                inference: FinalizeProgramInference.definition.identifier,
-                                realization: identity
-                            ),
-                        ]
-                    )
+                realization: try ProgramRealization<OptimizationFixtureProgram>(
+                    bindings: [
+                        .init(
+                            OptimizationFixtureProgram.prepare,
+                            realization: fixtureInferenceRealization(
+                                PrepareProgramInference.self,
+                                identifier: "prepare.identity",
+                                configuration: identity
+                            )
+                        ),
+                        .init(
+                            OptimizationFixtureProgram.finalize,
+                            realization: fixtureInferenceRealization(
+                                FinalizeProgramInference.self,
+                                identifier: "finalize.identity",
+                                configuration: identity
+                            )
+                        )
+                    ]
                 )
             ),
             .init(
                 id: "prepare_uppercase",
-                realization: AgentProgramRealization(
-                    id: "fixture.program.prepare_uppercase",
-                    inferences: try AgentProgramInferenceBindings(
-                        [
-                            AgentInferenceRealizationBinding(
-                                site: "prepare",
-                                inference: PrepareProgramInference.definition.identifier,
-                                realization: uppercase
-                            ),
-                            AgentInferenceRealizationBinding(
-                                site: "finalize",
-                                inference: FinalizeProgramInference.definition.identifier,
-                                realization: identity
-                            ),
-                        ]
-                    )
+                realization: try ProgramRealization<OptimizationFixtureProgram>(
+                    bindings: [
+                        .init(
+                            OptimizationFixtureProgram.prepare,
+                            realization: fixtureInferenceRealization(
+                                PrepareProgramInference.self,
+                                identifier: "prepare.uppercase",
+                                configuration: uppercase
+                            )
+                        ),
+                        .init(
+                            OptimizationFixtureProgram.finalize,
+                            realization: fixtureInferenceRealization(
+                                FinalizeProgramInference.self,
+                                identifier: "finalize.identity",
+                                configuration: identity
+                            )
+                        )
+                    ]
                 )
             ),
             .init(
                 id: "finalize_uppercase",
-                realization: AgentProgramRealization(
-                    id: "fixture.program.finalize_uppercase",
-                    inferences: try AgentProgramInferenceBindings(
-                        [
-                            AgentInferenceRealizationBinding(
-                                site: "prepare",
-                                inference: PrepareProgramInference.definition.identifier,
-                                realization: identity
-                            ),
-                            AgentInferenceRealizationBinding(
-                                site: "finalize",
-                                inference: FinalizeProgramInference.definition.identifier,
-                                realization: uppercase
-                            ),
-                        ]
-                    )
+                realization: try ProgramRealization<OptimizationFixtureProgram>(
+                    bindings: [
+                        .init(
+                            OptimizationFixtureProgram.prepare,
+                            realization: fixtureInferenceRealization(
+                                PrepareProgramInference.self,
+                                identifier: "prepare.identity",
+                                configuration: identity
+                            )
+                        ),
+                        .init(
+                            OptimizationFixtureProgram.finalize,
+                            realization: fixtureInferenceRealization(
+                                FinalizeProgramInference.self,
+                                identifier: "finalize.uppercase",
+                                configuration: uppercase
+                            )
+                        )
+                    ]
                 )
             ),
         ]

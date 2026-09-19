@@ -23,6 +23,10 @@ let package = Package(
     ],
     dependencies: [
         .package(
+            url: "https://github.com/leviouwendijk/Agentic.git",
+            branch: "master"
+        ),
+        .package(
             url: "https://github.com/leviouwendijk/AgenticInference.git",
             branch: "master"
         ),
@@ -52,6 +56,10 @@ let package = Package(
             name: "AgenticOptimizer",
             dependencies: [
                 .product(
+                    name: "Agentic",
+                    package: "Agentic"
+                ),
+                .product(
                     name: "AgenticInference",
                     package: "AgenticInference"
                 ),
@@ -77,6 +85,10 @@ let package = Package(
             name: "AgenticOptimizerTestFlows",
             dependencies: [
                 "AgenticOptimizer",
+                .product(
+                    name: "Agentic",
+                    package: "Agentic"
+                ),
                 .product(
                     name: "AgenticInference",
                     package: "AgenticInference"

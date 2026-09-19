@@ -1,3 +1,4 @@
+import Agentic
 import AgenticInference
 import AgenticPrograms
 import Foundation
@@ -30,14 +31,14 @@ public extension ProgramOptimization {
         }
     }
 
-    struct Example<Program: AgentProgram>: Sendable {
-        public var input: Program.Input
-        public var expectedOutput: Program.Output
+    struct Example<ProgramType: Program>: Sendable {
+        public var input: ProgramType.Input
+        public var expectedOutput: ProgramType.Output
         public var metadata: [String: String]
 
         public init(
-            input: Program.Input,
-            expectedOutput: Program.Output,
+            input: ProgramType.Input,
+            expectedOutput: ProgramType.Output,
             metadata: [String: String] = [:]
         ) {
             self.input = input
@@ -46,39 +47,73 @@ public extension ProgramOptimization {
         }
     }
 
-    struct SiteCandidates:
-        Sendable,
-        Codable,
-        Hashable
-    {
-        public var site: AgentInferenceSiteIdentifier
-        public var inference: AgentInferenceIdentifier
-        public var candidates: [AgentInferenceRealizationCandidate]
+    struct SiteCandidates<ProgramType: Program>: Sendable {
+        public let site: InferenceSiteIdentifier
+        public let inference: InferenceIdentifier
+        public let candidates: [InferenceRealizationCandidate]
 
-        public init(
-            site: AgentInferenceSiteIdentifier,
-            inference: AgentInferenceIdentifier,
-            candidates: [AgentInferenceRealizationCandidate]
+        private let seedConfiguration:
+            @Sendable (
+                ProgramRealization<ProgramType>
+            ) -> InferenceRealizationConfiguration?
+
+        private let applyCandidate:
+            @Sendable (
+                InferenceRealizationCandidate,
+                ProgramRealization<ProgramType>
+            ) -> ProgramRealization<ProgramType>
+
+        public init<InferenceType: Inference>(
+            _ site: InferenceSite<
+                ProgramType,
+                InferenceType
+            >,
+            candidates: [InferenceRealizationCandidate]
         ) {
-            self.site = site
-            self.inference = inference
+            self.site = site.identifier
+            self.inference = site.inference
             self.candidates = candidates
+            self.seedConfiguration = { realization in
+                guard
+                    let binding = realization.binding(
+                        for: site
+                    ),
+                    binding.inference == site.inference
+                else {
+                    return nil
+                }
+
+                return binding.configuration
+            }
+            self.applyCandidate = { candidate, realization in
+                realization.replacing(
+                    site,
+                    with: InferenceRealizationDefinition<InferenceType>(
+                        identifier: InferenceRealizationIdentifier(
+                            rawValue: candidate.identifier.rawValue
+                        ),
+                        configuration: candidate.realization
+                    )
+                )
+            }
         }
-    }
 
-    struct ResolvedSite: Sendable {
-        public let site: AgentInferenceSiteIdentifier
-        public let inference: AgentInferenceIdentifier
-        public let candidates: [AgentInferenceRealizationCandidate]
+        func seedConfiguration(
+            in realization: ProgramRealization<ProgramType>
+        ) -> InferenceRealizationConfiguration? {
+            seedConfiguration(
+                realization
+            )
+        }
 
-        init(
-            site: AgentInferenceSiteIdentifier,
-            inference: AgentInferenceIdentifier,
-            candidates: [AgentInferenceRealizationCandidate]
-        ) {
-            self.site = site
-            self.inference = inference
-            self.candidates = candidates
+        func applying(
+            _ candidate: InferenceRealizationCandidate,
+            to realization: ProgramRealization<ProgramType>
+        ) -> ProgramRealization<ProgramType> {
+            applyCandidate(
+                candidate,
+                realization
+            )
         }
     }
 
@@ -88,18 +123,13 @@ public extension ProgramOptimization {
         LocalizedError
     {
         case noSites
-        case duplicateSite(AgentInferenceSiteIdentifier)
-        case emptySiteCandidates(AgentInferenceSiteIdentifier)
+        case duplicateSite(InferenceSiteIdentifier)
+        case emptySiteCandidates(InferenceSiteIdentifier)
         case duplicateInferenceCandidate(
-            site: AgentInferenceSiteIdentifier,
-            candidate: AgentInferenceRealizationCandidateIdentifier
+            site: InferenceSiteIdentifier,
+            candidate: InferenceRealizationCandidateIdentifier
         )
-        case seedBindingUnavailable(AgentInferenceSiteIdentifier)
-        case inferenceMismatch(
-            site: AgentInferenceSiteIdentifier,
-            seed: AgentInferenceIdentifier,
-            candidates: AgentInferenceIdentifier
-        )
+        case seedBindingUnavailable(InferenceSiteIdentifier)
 
         public var errorDescription: String? {
             switch self {
@@ -120,39 +150,31 @@ public extension ProgramOptimization {
 
             case .seedBindingUnavailable(let site):
                 return "Program optimization seed realization has no inference binding at site '\(site.rawValue)'."
-
-            case .inferenceMismatch(
-                let site,
-                let seed,
-                let candidates
-            ):
-                return "Program optimization inference site '\(site.rawValue)' is bound to '\(seed.rawValue)' in the seed realization but candidate space targets '\(candidates.rawValue)'."
             }
         }
     }
 
-    struct SearchSpace<Program: AgentProgram>: Sendable {
-        public let seed: AgentProgramRealization<Program>
-        public let sites: [ResolvedSite]
+    struct SearchSpace<ProgramType: Program>: Sendable {
+        public let seed: ProgramRealization<ProgramType>
+        public let sites: [SiteCandidates<ProgramType>]
 
         private init(
-            seed: AgentProgramRealization<Program>,
-            sites: [ResolvedSite]
+            seed: ProgramRealization<ProgramType>,
+            sites: [SiteCandidates<ProgramType>]
         ) {
             self.seed = seed
             self.sites = sites
         }
 
         public static func parse(
-            seed: AgentProgramRealization<Program>,
-            sites: [SiteCandidates]
+            seed: ProgramRealization<ProgramType>,
+            sites: [SiteCandidates<ProgramType>]
         ) throws -> Self {
             guard !sites.isEmpty else {
                 throw SearchSpaceError.noSites
             }
 
-            var seenSites: Set<AgentInferenceSiteIdentifier> = []
-            var resolved: [ResolvedSite] = []
+            var seenSites: Set<InferenceSiteIdentifier> = []
 
             for site in sites {
                 guard seenSites.insert(site.site).inserted else {
@@ -168,7 +190,7 @@ public extension ProgramOptimization {
                 }
 
                 var seenCandidates: Set<
-                    AgentInferenceRealizationCandidateIdentifier
+                    InferenceRealizationCandidateIdentifier
                 > = []
 
                 for candidate in site.candidates {
@@ -185,34 +207,20 @@ public extension ProgramOptimization {
                     }
                 }
 
-                guard let binding = seed.inference(
-                    at: site.site
-                ) else {
+                guard
+                    site.seedConfiguration(
+                        in: seed
+                    ) != nil
+                else {
                     throw SearchSpaceError.seedBindingUnavailable(
                         site.site
                     )
                 }
-
-                guard binding.inference == site.inference else {
-                    throw SearchSpaceError.inferenceMismatch(
-                        site: site.site,
-                        seed: binding.inference,
-                        candidates: site.inference
-                    )
-                }
-
-                resolved.append(
-                    ResolvedSite(
-                        site: site.site,
-                        inference: site.inference,
-                        candidates: site.candidates
-                    )
-                )
             }
 
             return Self(
                 seed: seed,
-                sites: resolved
+                sites: sites
             )
         }
     }
@@ -299,14 +307,14 @@ public extension ProgramOptimization {
         Codable,
         Hashable
     {
-        public var site: AgentInferenceSiteIdentifier
-        public var inference: AgentInferenceIdentifier
-        public var candidate: AgentInferenceRealizationCandidate
+        public var site: InferenceSiteIdentifier
+        public var inference: InferenceIdentifier
+        public var candidate: InferenceRealizationCandidate
 
         public init(
-            site: AgentInferenceSiteIdentifier,
-            inference: AgentInferenceIdentifier,
-            candidate: AgentInferenceRealizationCandidate
+            site: InferenceSiteIdentifier,
+            inference: InferenceIdentifier,
+            candidate: InferenceRealizationCandidate
         ) {
             self.site = site
             self.inference = inference
@@ -314,15 +322,15 @@ public extension ProgramOptimization {
         }
     }
 
-    struct Candidate<Program: AgentProgram>: Sendable {
+    struct Candidate<ProgramType: Program>: Sendable {
         public var id: CandidateID
-        public var realization: AgentProgramRealization<Program>
+        public var realization: ProgramRealization<ProgramType>
         public var selections: [SiteSelection]
         public var metadata: [String: String]
 
         public init(
             id: CandidateID,
-            realization: AgentProgramRealization<Program>,
+            realization: ProgramRealization<ProgramType>,
             selections: [SiteSelection] = [],
             metadata: [String: String] = [:]
         ) {
@@ -356,11 +364,11 @@ public extension ProgramOptimization {
         }
     }
 
-    struct Examples<Program: AgentProgram>:
+    struct Examples<ProgramType: Program>:
         Sendable,
         RandomAccessCollection
     {
-        public typealias Element = Example<Program>
+        public typealias Element = Example<ProgramType>
         public typealias Index = Int
 
         private let storage: [Element]
@@ -402,11 +410,11 @@ public extension ProgramOptimization {
         }
     }
 
-    struct Candidates<Program: AgentProgram>:
+    struct Candidates<ProgramType: Program>:
         Sendable,
         RandomAccessCollection
     {
-        public typealias Element = Candidate<Program>
+        public typealias Element = Candidate<ProgramType>
         public typealias Index = Int
 
         private let storage: [Element]
@@ -463,21 +471,21 @@ public extension ProgramOptimization {
         }
     }
 
-    struct Problem<Program: AgentProgram>: Sendable {
-        public let examples: Examples<Program>
-        public let candidates: Candidates<Program>
+    struct Problem<ProgramType: Program>: Sendable {
+        public let examples: Examples<ProgramType>
+        public let candidates: Candidates<ProgramType>
 
         public init(
-            examples: Examples<Program>,
-            candidates: Candidates<Program>
+            examples: Examples<ProgramType>,
+            candidates: Candidates<ProgramType>
         ) {
             self.examples = examples
             self.candidates = candidates
         }
 
         public static func parse(
-            examples: [Example<Program>],
-            candidates: [Candidate<Program>]
+            examples: [Example<ProgramType>],
+            candidates: [Candidate<ProgramType>]
         ) throws -> Self {
             Self(
                 examples: try Examples.parse(
@@ -497,15 +505,15 @@ public extension ProgramOptimization {
     {
         public var candidate: CandidateID
         public var exampleIndex: Int
-        public var score: AgentInferenceOptimizationScore
-        public var executions: [AgentInferenceExecutionRecord]
+        public var score: InferenceOptimizationScore
+        public var executions: [InferenceExecutionRecord]
         public var durationSeconds: Double
 
         public init(
             candidate: CandidateID,
             exampleIndex: Int,
-            score: AgentInferenceOptimizationScore,
-            executions: [AgentInferenceExecutionRecord] = [],
+            score: InferenceOptimizationScore,
+            executions: [InferenceExecutionRecord] = [],
             durationSeconds: Double = 0
         ) {
             self.candidate = candidate
@@ -516,9 +524,9 @@ public extension ProgramOptimization {
         }
     }
 
-    struct CandidateResult<Program: AgentProgram>: Sendable {
-        public var candidate: Candidate<Program>
-        public let mean: AgentInferenceOptimizationScore
+    struct CandidateResult<ProgramType: Program>: Sendable {
+        public var candidate: Candidate<ProgramType>
+        public let mean: InferenceOptimizationScore
         public var trialIndexes: [Int]
 
         public var meanScore: Double {
@@ -526,8 +534,8 @@ public extension ProgramOptimization {
         }
 
         public init(
-            candidate: Candidate<Program>,
-            mean: AgentInferenceOptimizationScore,
+            candidate: Candidate<ProgramType>,
+            mean: InferenceOptimizationScore,
             trialIndexes: [Int]
         ) {
             self.candidate = candidate
@@ -536,16 +544,16 @@ public extension ProgramOptimization {
         }
     }
 
-    struct Result<Program: AgentProgram>: Sendable {
+    struct Result<ProgramType: Program>: Sendable {
         public var objective: ObjectiveID
-        public var selected: Candidate<Program>
-        public var candidates: [CandidateResult<Program>]
+        public var selected: Candidate<ProgramType>
+        public var candidates: [CandidateResult<ProgramType>]
         public var trials: [Trial]
 
         public init(
             objective: ObjectiveID,
-            selected: Candidate<Program>,
-            candidates: [CandidateResult<Program>],
+            selected: Candidate<ProgramType>,
+            candidates: [CandidateResult<ProgramType>],
             trials: [Trial]
         ) {
             self.objective = objective
@@ -558,10 +566,10 @@ public extension ProgramOptimization {
     protocol Objective: Sendable {
         var id: ObjectiveID { get }
 
-        func score<Program: AgentProgram>(
-            _ program: Program.Type,
-            example: Example<Program>,
-            output: Program.Output
-        ) async throws -> AgentInferenceOptimizationScore
+        func score<ProgramType: Program>(
+            _ program: ProgramType.Type,
+            example: Example<ProgramType>,
+            output: ProgramType.Output
+        ) async throws -> InferenceOptimizationScore
     }
 }

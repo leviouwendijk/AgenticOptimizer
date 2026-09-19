@@ -1,8 +1,9 @@
+import Agentic
 import AgenticInference
 import Foundation
 import Primitives
 
-public enum AgentInferenceInstructionProposalGeneratorError:
+public enum InferenceInstructionProposalGeneratorError:
     Error,
     Sendable,
     LocalizedError
@@ -10,7 +11,7 @@ public enum AgentInferenceInstructionProposalGeneratorError:
     case invalidMaximumProposals(Int)
     case emptyProposedInstructions(Int)
     case duplicateCandidateIdentifier(
-        AgentInferenceRealizationCandidateIdentifier
+        InferenceRealizationCandidateIdentifier
     )
     case noCandidatesProduced
 
@@ -31,8 +32,8 @@ public enum AgentInferenceInstructionProposalGeneratorError:
     }
 }
 
-public struct AgentInferenceInstructionProposalCandidateGenerator:
-    AgentInferenceRealizationCandidateGenerating,
+public struct InferenceInstructionProposalCandidateGenerator:
+    InferenceRealizationCandidateGenerating,
     Sendable
 {
     private struct ParsedProposal: Sendable {
@@ -41,19 +42,19 @@ public struct AgentInferenceInstructionProposalCandidateGenerator:
         let rationale: String
     }
 
-    private let proposer: any AgentInferenceExecuting
+    private let proposer: any InferenceExecuting
 
-    public let proposalRealization: AgentInferenceRealization
+    public let proposalRealization: InferenceRealizationConfiguration
     public let maximumProposals: Int
     public let includeSeed: Bool
-    public let seedIdentifier: AgentInferenceRealizationCandidateIdentifier
+    public let seedIdentifier: InferenceRealizationCandidateIdentifier
 
     private init(
-        proposer: any AgentInferenceExecuting,
-        proposalRealization: AgentInferenceRealization,
+        proposer: any InferenceExecuting,
+        proposalRealization: InferenceRealizationConfiguration,
         parsedMaximumProposals maximumProposals: Int,
         includeSeed: Bool,
-        seedIdentifier: AgentInferenceRealizationCandidateIdentifier
+        seedIdentifier: InferenceRealizationCandidateIdentifier
     ) {
         self.proposer = proposer
         self.proposalRealization = proposalRealization
@@ -63,14 +64,14 @@ public struct AgentInferenceInstructionProposalCandidateGenerator:
     }
 
     public static func parse(
-        proposer: any AgentInferenceExecuting,
-        proposalRealization: AgentInferenceRealization,
+        proposer: any InferenceExecuting,
+        proposalRealization: InferenceRealizationConfiguration,
         maximumProposals: Int = 4,
         includeSeed: Bool = true,
-        seedIdentifier: AgentInferenceRealizationCandidateIdentifier = "seed"
+        seedIdentifier: InferenceRealizationCandidateIdentifier = "seed"
     ) throws -> Self {
         guard maximumProposals > 0 else {
-            throw AgentInferenceInstructionProposalGeneratorError
+            throw InferenceInstructionProposalGeneratorError
                 .invalidMaximumProposals(
                     maximumProposals
                 )
@@ -79,12 +80,12 @@ public struct AgentInferenceInstructionProposalCandidateGenerator:
         if includeSeed {
             for index in 1...maximumProposals {
                 let generatedIdentifier =
-                    AgentInferenceRealizationCandidateIdentifier(
+                    InferenceRealizationCandidateIdentifier(
                         "proposal_\(index)"
                     )
 
                 guard generatedIdentifier != seedIdentifier else {
-                    throw AgentInferenceInstructionProposalGeneratorError
+                    throw InferenceInstructionProposalGeneratorError
                         .duplicateCandidateIdentifier(
                             seedIdentifier
                         )
@@ -101,18 +102,18 @@ public struct AgentInferenceInstructionProposalCandidateGenerator:
         )
     }
 
-    public func generate<Inference: AgentInference>(
-        _ inference: Inference.Type,
-        examples: [AgentInferenceOptimizationExample<Inference>],
-        seed: AgentInferenceRealization
-    ) async throws -> [AgentInferenceRealizationCandidate] {
+    public func generate<InferenceType: Inference>(
+        _ inference: InferenceType.Type,
+        examples: [InferenceOptimizationExample<InferenceType>],
+        seed: InferenceRealizationConfiguration
+    ) async throws -> [InferenceRealizationCandidate] {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [
             .sortedKeys,
         ]
 
         let proposalExamples = try examples.map { example in
-            AgentInferenceInstructionProposalExample(
+            InferenceInstructionProposalExample(
                 inputJSON: String(
                     decoding: try encoder.encode(
                         example.input
@@ -130,8 +131,8 @@ public struct AgentInferenceInstructionProposalCandidateGenerator:
         }
 
         let proposalExecution = try await proposer.execute(
-            ProposeInferenceInstructions.self,
-            input: ProposeInferenceInstructions.Input(
+            Standard.Inferences.ProposeInferenceInstructions.self,
+            input: Standard.Inferences.ProposeInferenceInstructions.Input(
                 inferenceIdentifier: inference.definition.identifier.rawValue,
                 inferencePurpose: inference.definition.purpose,
                 seedInstructions: seed.instructions,
@@ -145,11 +146,11 @@ public struct AgentInferenceInstructionProposalCandidateGenerator:
             seedInstructions: seed.instructions
         )
 
-        var candidates: [AgentInferenceRealizationCandidate] = []
+        var candidates: [InferenceRealizationCandidate] = []
 
         if includeSeed {
             candidates.append(
-                AgentInferenceRealizationCandidate(
+                InferenceRealizationCandidate(
                     identifier: seedIdentifier,
                     realization: seed,
                     source: .seed
@@ -162,8 +163,8 @@ public struct AgentInferenceInstructionProposalCandidateGenerator:
             realization.instructions = proposal.instructions
 
             candidates.append(
-                AgentInferenceRealizationCandidate(
-                    identifier: AgentInferenceRealizationCandidateIdentifier(
+                InferenceRealizationCandidate(
+                    identifier: InferenceRealizationCandidateIdentifier(
                         "proposal_\(proposal.index + 1)"
                     ),
                     realization: realization,
@@ -183,7 +184,7 @@ public struct AgentInferenceInstructionProposalCandidateGenerator:
     }
 
     private func parse(
-        _ proposals: [AgentInferenceInstructionProposal],
+        _ proposals: [InferenceInstructionProposal],
         seedInstructions: String
     ) throws -> [ParsedProposal] {
         var seenInstructions: Set<String> = []
@@ -207,7 +208,7 @@ public struct AgentInferenceInstructionProposalCandidateGenerator:
             )
 
             guard !instructions.isEmpty else {
-                throw AgentInferenceInstructionProposalGeneratorError
+                throw InferenceInstructionProposalGeneratorError
                     .emptyProposedInstructions(
                         index
                     )
@@ -227,7 +228,7 @@ public struct AgentInferenceInstructionProposalCandidateGenerator:
         }
 
         guard includeSeed || !parsed.isEmpty else {
-            throw AgentInferenceInstructionProposalGeneratorError
+            throw InferenceInstructionProposalGeneratorError
                 .noCandidatesProduced
         }
 

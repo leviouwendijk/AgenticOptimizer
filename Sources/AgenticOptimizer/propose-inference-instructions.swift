@@ -1,8 +1,9 @@
+import Agentic
 import AgenticInference
 import Schema
 import Macros
 
-public struct AgentInferenceInstructionProposalExample:
+public struct InferenceInstructionProposalExample:
     Sendable,
     Codable,
     Hashable
@@ -23,7 +24,7 @@ public struct AgentInferenceInstructionProposalExample:
 }
 
 @JSONSchema
-public struct AgentInferenceInstructionProposal:
+public struct InferenceInstructionProposal:
     Sendable,
     Codable,
     Hashable
@@ -44,58 +45,53 @@ public struct AgentInferenceInstructionProposal:
 }
 
 @JSONSchema
-public struct AgentInferenceInstructionProposalSet:
+public struct InferenceInstructionProposalSet:
     Sendable,
     Codable,
     Hashable
 {
     /// Distinct instruction alternatives worth evaluating against the supplied examples.
-    public var proposals: [AgentInferenceInstructionProposal]
+    public var proposals: [InferenceInstructionProposal]
 
     public init(
-        proposals: [AgentInferenceInstructionProposal]
+        proposals: [InferenceInstructionProposal]
     ) {
         self.proposals = proposals
     }
 }
 
-public struct ProposeInferenceInstructions: AgentInference {
-    public struct Input:
-        Sendable,
-        Codable,
-        Hashable
-    {
-        public var inferenceIdentifier: String
-        public var inferencePurpose: String
-        public var seedInstructions: String
-        public var examples: [AgentInferenceInstructionProposalExample]
-        public var requestedProposalCount: Int
+extension Standard.Inferences {
+    @Inference
+    public struct ProposeInferenceInstructions {
+        public struct Input:
+            Sendable,
+            Codable,
+            Hashable
+        {
+            public var inferenceIdentifier: String
+            public var inferencePurpose: String
+            public var seedInstructions: String
+            public var examples: [InferenceInstructionProposalExample]
+            public var requestedProposalCount: Int
 
-        public init(
-            inferenceIdentifier: String,
-            inferencePurpose: String,
-            seedInstructions: String,
-            examples: [AgentInferenceInstructionProposalExample],
-            requestedProposalCount: Int
-        ) {
-            self.inferenceIdentifier = inferenceIdentifier
-            self.inferencePurpose = inferencePurpose
-            self.seedInstructions = seedInstructions
-            self.examples = examples
-            self.requestedProposalCount = requestedProposalCount
+            public init(
+                inferenceIdentifier: String,
+                inferencePurpose: String,
+                seedInstructions: String,
+                examples: [InferenceInstructionProposalExample],
+                requestedProposalCount: Int
+            ) {
+                self.inferenceIdentifier = inferenceIdentifier
+                self.inferencePurpose = inferencePurpose
+                self.seedInstructions = seedInstructions
+                self.examples = examples
+                self.requestedProposalCount = requestedProposalCount
+            }
         }
+
+        public typealias Output = InferenceInstructionProposalSet
+
+        public static let purpose =
+            "Propose distinct complete instruction variants for a semantic inference so an optimizer can evaluate them against typed examples."
     }
-
-    public typealias Output = AgentInferenceInstructionProposalSet
-
-    public static let definition = AgentInferenceDefinition(
-        identifier: "propose_inference_instructions",
-        purpose: "Propose distinct complete instruction variants for a semantic inference so an optimizer can evaluate them against typed examples.",
-        title: "Propose Inference Instructions",
-        tags: [
-            "optimization",
-            "instructions",
-            "proposal",
-        ]
-    )
 }

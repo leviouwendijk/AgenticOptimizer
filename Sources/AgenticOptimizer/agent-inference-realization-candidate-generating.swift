@@ -1,9 +1,10 @@
+import Agentic
 import AgenticInference
 
-public protocol AgentInferenceRealizationCandidateGenerating: Sendable {
-    func generate<Inference: AgentInference>(
-        _ inference: Inference.Type,
-        examples: [AgentInferenceOptimizationExample<Inference>],
-        seed: AgentInferenceRealization
-    ) async throws -> [AgentInferenceRealizationCandidate]
+public protocol InferenceRealizationCandidateGenerating: Sendable {
+    func generate<InferenceType: Inference>(
+        _ inference: InferenceType.Type,
+        examples: [InferenceOptimizationExample<InferenceType>],
+        seed: InferenceRealizationConfiguration
+    ) async throws -> [InferenceRealizationCandidate]
 }

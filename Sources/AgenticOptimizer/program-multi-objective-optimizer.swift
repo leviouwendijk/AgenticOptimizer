@@ -1,18 +1,19 @@
+import Agentic
 import AgenticInference
 import AgenticPrograms
 
 public extension ProgramOptimization {
-    struct MultiObjectiveCandidateResult<Program: AgentProgram>:
+    struct MultiObjectiveCandidateResult<ProgramType: Program>:
         Sendable
     {
-        public var quality: CandidateResult<Program>
-        public var resources: AgentOptimizationResourceMetrics
-        public var utility: AgentInferenceOptimizationScore
+        public var quality: CandidateResult<ProgramType>
+        public var resources: OptimizationResourceMetrics
+        public var utility: InferenceOptimizationScore
 
         public init(
-            quality: CandidateResult<Program>,
-            resources: AgentOptimizationResourceMetrics,
-            utility: AgentInferenceOptimizationScore
+            quality: CandidateResult<ProgramType>,
+            resources: OptimizationResourceMetrics,
+            utility: InferenceOptimizationScore
         ) {
             self.quality = quality
             self.resources = resources
@@ -20,20 +21,20 @@ public extension ProgramOptimization {
         }
     }
 
-    struct MultiObjectiveResult<Program: AgentProgram>:
+    struct MultiObjectiveResult<ProgramType: Program>:
         Sendable
     {
         public var objective: ObjectiveID
-        public var weights: AgentOptimizationMultiObjectiveWeights
-        public var selected: Candidate<Program>
-        public var candidates: [MultiObjectiveCandidateResult<Program>]
+        public var weights: OptimizationMultiObjectiveWeights
+        public var selected: Candidate<ProgramType>
+        public var candidates: [MultiObjectiveCandidateResult<ProgramType>]
         public var trials: [Trial]
 
         public init(
             objective: ObjectiveID,
-            weights: AgentOptimizationMultiObjectiveWeights,
-            selected: Candidate<Program>,
-            candidates: [MultiObjectiveCandidateResult<Program>],
+            weights: OptimizationMultiObjectiveWeights,
+            selected: Candidate<ProgramType>,
+            candidates: [MultiObjectiveCandidateResult<ProgramType>],
             trials: [Trial]
         ) {
             self.objective = objective
@@ -44,30 +45,30 @@ public extension ProgramOptimization {
         }
     }
 
-    struct MultiObjectiveEvaluation<Program: AgentProgram>:
+    struct MultiObjectiveEvaluation<ProgramType: Program>:
         Sendable
     {
-        public var quality: Evaluation<Program>
-        public var resources: AgentOptimizationResourceMetrics
+        public var quality: Evaluation<ProgramType>
+        public var resources: OptimizationResourceMetrics
 
         public init(
-            quality: Evaluation<Program>,
-            resources: AgentOptimizationResourceMetrics
+            quality: Evaluation<ProgramType>,
+            resources: OptimizationResourceMetrics
         ) {
             self.quality = quality
             self.resources = resources
         }
     }
 
-    struct MultiObjectiveReport<Program: AgentProgram>:
+    struct MultiObjectiveReport<ProgramType: Program>:
         Sendable
     {
-        public var optimization: MultiObjectiveResult<Program>
-        public var evaluation: MultiObjectiveEvaluation<Program>
+        public var optimization: MultiObjectiveResult<ProgramType>
+        public var evaluation: MultiObjectiveEvaluation<ProgramType>
 
         public init(
-            optimization: MultiObjectiveResult<Program>,
-            evaluation: MultiObjectiveEvaluation<Program>
+            optimization: MultiObjectiveResult<ProgramType>,
+            evaluation: MultiObjectiveEvaluation<ProgramType>
         ) {
             self.optimization = optimization
             self.evaluation = evaluation
@@ -75,18 +76,18 @@ public extension ProgramOptimization {
     }
 }
 
-public struct ProgramMultiObjectiveOptimizer<Program: AgentProgram>:
+public struct ProgramMultiObjectiveOptimizer<ProgramType: Program>:
     Sendable
 {
-    private let search: ProgramRealizationSearch<Program>
-    private let resources: any AgentOptimizationResourceEstimating
+    private let search: ProgramRealizationSearch<ProgramType>
+    private let resources: any OptimizationResourceEstimating
 
     public init(
-        program: Program,
-        inferenceExecutor: any AgentInferenceExecuting,
+        program: ProgramType,
+        inferenceExecutor: any InferenceExecuting,
         objective: any ProgramOptimization.Objective,
-        resources: any AgentOptimizationResourceEstimating =
-            AgentOptimizationExecutionResourceEstimator()
+        resources: any OptimizationResourceEstimating =
+            OptimizationExecutionResourceEstimator()
     ) {
         self.search = ProgramRealizationSearch(
             program: program,
@@ -97,10 +98,10 @@ public struct ProgramMultiObjectiveOptimizer<Program: AgentProgram>:
     }
 
     public func optimize(
-        dataset: ProgramOptimization.Dataset<Program>,
-        candidates: [ProgramOptimization.Candidate<Program>],
-        weights: AgentOptimizationMultiObjectiveWeights
-    ) async throws -> ProgramOptimization.MultiObjectiveReport<Program> {
+        dataset: ProgramOptimization.Dataset<ProgramType>,
+        candidates: [ProgramOptimization.Candidate<ProgramType>],
+        weights: OptimizationMultiObjectiveWeights
+    ) async throws -> ProgramOptimization.MultiObjectiveReport<ProgramType> {
         let optimization = try await optimize(
             examples: dataset.training,
             candidates: candidates,
@@ -124,22 +125,22 @@ public struct ProgramMultiObjectiveOptimizer<Program: AgentProgram>:
     }
 
     public func optimize(
-        examples: ProgramOptimization.Examples<Program>,
-        candidates: [ProgramOptimization.Candidate<Program>],
-        weights: AgentOptimizationMultiObjectiveWeights
-    ) async throws -> ProgramOptimization.MultiObjectiveResult<Program> {
+        examples: ProgramOptimization.Examples<ProgramType>,
+        candidates: [ProgramOptimization.Candidate<ProgramType>],
+        weights: OptimizationMultiObjectiveWeights
+    ) async throws -> ProgramOptimization.MultiObjectiveResult<ProgramType> {
         let qualityResult = try await search.optimize(
             problem: ProgramOptimization.Problem(
                 examples: examples,
                 candidates: try ProgramOptimization
-                    .Candidates<Program>
+                    .Candidates<ProgramType>
                     .parse(
                         candidates
                     )
             )
         )
-        var measurements: [AgentOptimizationMultiObjectiveMeasurement] = []
-        var resourceMetrics: [AgentOptimizationResourceMetrics] = []
+        var measurements: [OptimizationMultiObjectiveMeasurement] = []
+        var resourceMetrics: [OptimizationResourceMetrics] = []
 
         for candidate in qualityResult.candidates {
             let trials = candidate.trialIndexes.map {
@@ -153,14 +154,14 @@ public struct ProgramMultiObjectiveOptimizer<Program: AgentProgram>:
                 resources
             )
             measurements.append(
-                AgentOptimizationMultiObjectiveMeasurement(
+                OptimizationMultiObjectiveMeasurement(
                     quality: candidate.mean,
                     resources: resources
                 )
             )
         }
 
-        let ranking = try AgentOptimizationMultiObjectiveRanking.rank(
+        let ranking = try OptimizationMultiObjectiveRanking.rank(
             measurements,
             weights: weights
         )
@@ -186,7 +187,7 @@ public struct ProgramMultiObjectiveOptimizer<Program: AgentProgram>:
 
     private func candidateResources(
         _ trials: [ProgramOptimization.Trial]
-    ) throws -> AgentOptimizationResourceMetrics {
+    ) throws -> OptimizationResourceMetrics {
         let metrics = try trials.map { trial in
             try resources.estimate(
                 executions: trial.executions,
@@ -194,7 +195,7 @@ public struct ProgramMultiObjectiveOptimizer<Program: AgentProgram>:
             )
         }
 
-        return try AgentOptimizationMultiObjectiveRanking.aggregate(
+        return try OptimizationMultiObjectiveRanking.aggregate(
             metrics
         )
     }

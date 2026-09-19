@@ -1,8 +1,9 @@
+import Agentic
 import AgenticInference
 import Foundation
 import Primitives
 
-public struct AgentInferenceRealizationCandidateIdentifier:
+public struct InferenceRealizationCandidateIdentifier:
     StringIdentifier
 {
     public let rawValue: String
@@ -14,7 +15,7 @@ public struct AgentInferenceRealizationCandidateIdentifier:
     }
 }
 
-public struct AgentInferenceOptimizationObjectiveIdentifier:
+public struct InferenceOptimizationObjectiveIdentifier:
     StringIdentifier
 {
     public let rawValue: String
@@ -26,16 +27,16 @@ public struct AgentInferenceOptimizationObjectiveIdentifier:
     }
 }
 
-public struct AgentInferenceOptimizationExample<Inference: AgentInference>:
+public struct InferenceOptimizationExample<InferenceType: Inference>:
     Sendable
 {
-    public var input: Inference.Input
-    public var expectedOutput: Inference.Output
+    public var input: InferenceType.Input
+    public var expectedOutput: InferenceType.Output
     public var metadata: [String: String]
 
     public init(
-        input: Inference.Input,
-        expectedOutput: Inference.Output,
+        input: InferenceType.Input,
+        expectedOutput: InferenceType.Output,
         metadata: [String: String] = [:]
     ) {
         self.input = input
@@ -44,7 +45,7 @@ public struct AgentInferenceOptimizationExample<Inference: AgentInference>:
     }
 }
 
-public enum AgentInferenceRealizationCandidateSource:
+public enum InferenceRealizationCandidateSource:
     String,
     Sendable,
     Codable,
@@ -58,24 +59,24 @@ public enum AgentInferenceRealizationCandidateSource:
     case demonstration_bootstrap
 }
 
-public struct AgentInferenceRealizationCandidate:
+public struct InferenceRealizationCandidate:
     Sendable,
     Codable,
     Hashable
 {
-    public var identifier: AgentInferenceRealizationCandidateIdentifier
-    public var realization: AgentInferenceRealization
-    public var source: AgentInferenceRealizationCandidateSource
-    public var generation: AgentInferenceExecutionRecord?
-    public var bootstrap: AgentInferenceDemonstrationBootstrapRecord?
+    public var identifier: InferenceRealizationCandidateIdentifier
+    public var realization: InferenceRealizationConfiguration
+    public var source: InferenceRealizationCandidateSource
+    public var generation: InferenceExecutionRecord?
+    public var bootstrap: InferenceDemonstrationBootstrapRecord?
     public var metadata: [String: String]
 
     public init(
-        identifier: AgentInferenceRealizationCandidateIdentifier,
-        realization: AgentInferenceRealization,
-        source: AgentInferenceRealizationCandidateSource = .supplied,
-        generation: AgentInferenceExecutionRecord? = nil,
-        bootstrap: AgentInferenceDemonstrationBootstrapRecord? = nil,
+        identifier: InferenceRealizationCandidateIdentifier,
+        realization: InferenceRealizationConfiguration,
+        source: InferenceRealizationCandidateSource = .supplied,
+        generation: InferenceExecutionRecord? = nil,
+        bootstrap: InferenceDemonstrationBootstrapRecord? = nil,
         metadata: [String: String] = [:]
     ) {
         self.identifier = identifier
@@ -87,7 +88,7 @@ public struct AgentInferenceRealizationCandidate:
     }
 }
 
-public enum AgentInferenceOptimizationScoreParsingError:
+public enum InferenceOptimizationScoreParsingError:
     Error,
     Sendable,
     LocalizedError
@@ -102,7 +103,7 @@ public enum AgentInferenceOptimizationScoreParsingError:
     }
 }
 
-public struct AgentInferenceOptimizationScore:
+public struct InferenceOptimizationScore:
     Sendable,
     Codable,
     Hashable
@@ -139,7 +140,7 @@ public struct AgentInferenceOptimizationScore:
         metadata: [String: String] = [:]
     ) throws -> Self {
         guard value.isFinite else {
-            throw AgentInferenceOptimizationScoreParsingError.nonFinite(
+            throw InferenceOptimizationScoreParsingError.nonFinite(
                 value
             )
         }
@@ -187,7 +188,7 @@ public struct AgentInferenceOptimizationScore:
     }
 }
 
-public enum AgentInferenceOptimizationProblemParsingError:
+public enum InferenceOptimizationProblemParsingError:
     Error,
     Sendable,
     LocalizedError
@@ -195,7 +196,7 @@ public enum AgentInferenceOptimizationProblemParsingError:
     case noExamples
     case noCandidates
     case duplicateCandidateIdentifier(
-        AgentInferenceRealizationCandidateIdentifier
+        InferenceRealizationCandidateIdentifier
     )
 
     public var errorDescription: String? {
@@ -212,11 +213,11 @@ public enum AgentInferenceOptimizationProblemParsingError:
     }
 }
 
-public struct AgentInferenceOptimizationExamples<Inference: AgentInference>:
+public struct InferenceOptimizationExamples<InferenceType: Inference>:
     Sendable,
     RandomAccessCollection
 {
-    public typealias Element = AgentInferenceOptimizationExample<Inference>
+    public typealias Element = InferenceOptimizationExample<InferenceType>
     public typealias Index = Int
 
     private let storage: [Element]
@@ -245,7 +246,7 @@ public struct AgentInferenceOptimizationExamples<Inference: AgentInference>:
         _ examples: [Element]
     ) throws -> Self {
         guard !examples.isEmpty else {
-            throw AgentInferenceOptimizationProblemParsingError.noExamples
+            throw InferenceOptimizationProblemParsingError.noExamples
         }
 
         return Self(
@@ -258,11 +259,11 @@ public struct AgentInferenceOptimizationExamples<Inference: AgentInference>:
     }
 }
 
-public struct AgentInferenceRealizationCandidates:
+public struct InferenceRealizationCandidates:
     Sendable,
     RandomAccessCollection
 {
-    public typealias Element = AgentInferenceRealizationCandidate
+    public typealias Element = InferenceRealizationCandidate
     public typealias Index = Int
 
     private let storage: [Element]
@@ -295,16 +296,16 @@ public struct AgentInferenceRealizationCandidates:
         _ candidates: [Element]
     ) throws -> Self {
         guard !candidates.isEmpty else {
-            throw AgentInferenceOptimizationProblemParsingError.noCandidates
+            throw InferenceOptimizationProblemParsingError.noCandidates
         }
 
         var identifiers: Set<
-            AgentInferenceRealizationCandidateIdentifier
+            InferenceRealizationCandidateIdentifier
         > = []
 
         for candidate in candidates {
             guard identifiers.insert(candidate.identifier).inserted else {
-                throw AgentInferenceOptimizationProblemParsingError
+                throw InferenceOptimizationProblemParsingError
                     .duplicateCandidateIdentifier(
                         candidate.identifier
                     )
@@ -321,61 +322,61 @@ public struct AgentInferenceRealizationCandidates:
     }
 }
 
-public struct AgentInferenceOptimizationProblem<Inference: AgentInference>:
+public struct InferenceOptimizationProblem<InferenceType: Inference>:
     Sendable
 {
-    public let examples: AgentInferenceOptimizationExamples<Inference>
-    public let candidates: AgentInferenceRealizationCandidates
+    public let examples: InferenceOptimizationExamples<InferenceType>
+    public let candidates: InferenceRealizationCandidates
 
     public init(
-        examples: AgentInferenceOptimizationExamples<Inference>,
-        candidates: AgentInferenceRealizationCandidates
+        examples: InferenceOptimizationExamples<InferenceType>,
+        candidates: InferenceRealizationCandidates
     ) {
         self.examples = examples
         self.candidates = candidates
     }
 
     public static func parse(
-        examples: [AgentInferenceOptimizationExample<Inference>],
-        candidates: [AgentInferenceRealizationCandidate]
+        examples: [InferenceOptimizationExample<InferenceType>],
+        candidates: [InferenceRealizationCandidate]
     ) throws -> Self {
         Self(
-            examples: try AgentInferenceOptimizationExamples.parse(
+            examples: try InferenceOptimizationExamples.parse(
                 examples
             ),
-            candidates: try AgentInferenceRealizationCandidates.parse(
+            candidates: try InferenceRealizationCandidates.parse(
                 candidates
             )
         )
     }
 }
 
-public protocol AgentInferenceOptimizationObjective: Sendable {
-    var identifier: AgentInferenceOptimizationObjectiveIdentifier { get }
+public protocol InferenceOptimizationObjective: Sendable {
+    var identifier: InferenceOptimizationObjectiveIdentifier { get }
 
-    func score<Inference: AgentInference>(
-        _ inference: Inference.Type,
-        example: AgentInferenceOptimizationExample<Inference>,
-        result: AgentInferenceExecutionResult<Inference.Output>
-    ) async throws -> AgentInferenceOptimizationScore
+    func score<InferenceType: Inference>(
+        _ inference: InferenceType.Type,
+        example: InferenceOptimizationExample<InferenceType>,
+        result: InferenceExecutionResult<InferenceType.Output>
+    ) async throws -> InferenceOptimizationScore
 }
 
-public struct AgentInferenceOptimizationTrial:
+public struct InferenceOptimizationTrial:
     Sendable,
     Codable,
     Hashable
 {
-    public var candidate: AgentInferenceRealizationCandidateIdentifier
+    public var candidate: InferenceRealizationCandidateIdentifier
     public var exampleIndex: Int
-    public var score: AgentInferenceOptimizationScore
-    public var execution: AgentInferenceExecutionRecord
+    public var score: InferenceOptimizationScore
+    public var execution: InferenceExecutionRecord
     public var durationSeconds: Double
 
     public init(
-        candidate: AgentInferenceRealizationCandidateIdentifier,
+        candidate: InferenceRealizationCandidateIdentifier,
         exampleIndex: Int,
-        score: AgentInferenceOptimizationScore,
-        execution: AgentInferenceExecutionRecord,
+        score: InferenceOptimizationScore,
+        execution: InferenceExecutionRecord,
         durationSeconds: Double = 0
     ) {
         self.candidate = candidate
@@ -386,13 +387,13 @@ public struct AgentInferenceOptimizationTrial:
     }
 }
 
-public struct AgentInferenceOptimizationCandidateResult:
+public struct InferenceOptimizationCandidateResult:
     Sendable,
     Codable,
     Hashable
 {
-    public var candidate: AgentInferenceRealizationCandidate
-    public let mean: AgentInferenceOptimizationScore
+    public var candidate: InferenceRealizationCandidate
+    public let mean: InferenceOptimizationScore
     public var trialIndexes: [Int]
 
     public var meanScore: Double {
@@ -406,8 +407,8 @@ public struct AgentInferenceOptimizationCandidateResult:
     }
 
     public init(
-        candidate: AgentInferenceRealizationCandidate,
-        mean: AgentInferenceOptimizationScore,
+        candidate: InferenceRealizationCandidate,
+        mean: InferenceOptimizationScore,
         trialIndexes: [Int]
     ) {
         self.candidate = candidate
@@ -424,10 +425,10 @@ public struct AgentInferenceOptimizationCandidateResult:
 
         self.init(
             candidate: try container.decode(
-                AgentInferenceRealizationCandidate.self,
+                InferenceRealizationCandidate.self,
                 forKey: .candidate
             ),
-            mean: try AgentInferenceOptimizationScore.parse(
+            mean: try InferenceOptimizationScore.parse(
                 value: try container.decode(
                     Double.self,
                     forKey: .meanScore
@@ -462,23 +463,23 @@ public struct AgentInferenceOptimizationCandidateResult:
     }
 }
 
-public struct AgentInferenceOptimizationResult:
+public struct InferenceOptimizationResult:
     Sendable,
     Codable,
     Hashable
 {
-    public var inference: AgentInferenceIdentifier
-    public var objective: AgentInferenceOptimizationObjectiveIdentifier
-    public var selectedCandidate: AgentInferenceRealizationCandidate
-    public var candidates: [AgentInferenceOptimizationCandidateResult]
-    public var trials: [AgentInferenceOptimizationTrial]
+    public var inference: InferenceIdentifier
+    public var objective: InferenceOptimizationObjectiveIdentifier
+    public var selectedCandidate: InferenceRealizationCandidate
+    public var candidates: [InferenceOptimizationCandidateResult]
+    public var trials: [InferenceOptimizationTrial]
 
     public init(
-        inference: AgentInferenceIdentifier,
-        objective: AgentInferenceOptimizationObjectiveIdentifier,
-        selectedCandidate: AgentInferenceRealizationCandidate,
-        candidates: [AgentInferenceOptimizationCandidateResult],
-        trials: [AgentInferenceOptimizationTrial]
+        inference: InferenceIdentifier,
+        objective: InferenceOptimizationObjectiveIdentifier,
+        selectedCandidate: InferenceRealizationCandidate,
+        candidates: [InferenceOptimizationCandidateResult],
+        trials: [InferenceOptimizationTrial]
     ) {
         self.inference = inference
         self.objective = objective

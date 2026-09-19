@@ -1,18 +1,19 @@
+import Agentic
 import AgenticInference
 import Foundation
 import Primitives
 
-public struct AgentInferenceInstructionVariant:
+public struct InferenceInstructionVariant:
     Sendable,
     Codable,
     Hashable
 {
-    public var identifier: AgentInferenceRealizationCandidateIdentifier
+    public var identifier: InferenceRealizationCandidateIdentifier
     public var instructions: String
     public var metadata: [String: String]
 
     public init(
-        identifier: AgentInferenceRealizationCandidateIdentifier,
+        identifier: InferenceRealizationCandidateIdentifier,
         instructions: String,
         metadata: [String: String] = [:]
     ) {
@@ -22,16 +23,16 @@ public struct AgentInferenceInstructionVariant:
     }
 }
 
-public enum AgentInferenceInstructionVariantGeneratorError:
+public enum InferenceInstructionVariantGeneratorError:
     Error,
     Sendable,
     LocalizedError
 {
     case duplicateCandidateIdentifier(
-        AgentInferenceRealizationCandidateIdentifier
+        InferenceRealizationCandidateIdentifier
     )
     case emptyInstructions(
-        AgentInferenceRealizationCandidateIdentifier
+        InferenceRealizationCandidateIdentifier
     )
     case noCandidates
 
@@ -49,18 +50,18 @@ public enum AgentInferenceInstructionVariantGeneratorError:
     }
 }
 
-public struct AgentInferenceInstructionVariantGenerator:
-    AgentInferenceRealizationCandidateGenerating,
+public struct InferenceInstructionVariantGenerator:
+    InferenceRealizationCandidateGenerating,
     Sendable
 {
-    public let variants: [AgentInferenceInstructionVariant]
+    public let variants: [InferenceInstructionVariant]
     public let includeSeed: Bool
-    public let seedIdentifier: AgentInferenceRealizationCandidateIdentifier
+    public let seedIdentifier: InferenceRealizationCandidateIdentifier
 
     private init(
-        parsedVariants variants: [AgentInferenceInstructionVariant],
+        parsedVariants variants: [InferenceInstructionVariant],
         includeSeed: Bool,
-        seedIdentifier: AgentInferenceRealizationCandidateIdentifier
+        seedIdentifier: InferenceRealizationCandidateIdentifier
     ) {
         self.variants = variants
         self.includeSeed = includeSeed
@@ -68,12 +69,12 @@ public struct AgentInferenceInstructionVariantGenerator:
     }
 
     public static func parse(
-        variants: [AgentInferenceInstructionVariant],
+        variants: [InferenceInstructionVariant],
         includeSeed: Bool = true,
-        seedIdentifier: AgentInferenceRealizationCandidateIdentifier = "seed"
+        seedIdentifier: InferenceRealizationCandidateIdentifier = "seed"
     ) throws -> Self {
         var identifiers: Set<
-            AgentInferenceRealizationCandidateIdentifier
+            InferenceRealizationCandidateIdentifier
         > = []
 
         if includeSeed {
@@ -82,11 +83,11 @@ public struct AgentInferenceInstructionVariantGenerator:
             )
         }
 
-        var parsedVariants: [AgentInferenceInstructionVariant] = []
+        var parsedVariants: [InferenceInstructionVariant] = []
 
         for variant in variants {
             guard identifiers.insert(variant.identifier).inserted else {
-                throw AgentInferenceInstructionVariantGeneratorError
+                throw InferenceInstructionVariantGeneratorError
                     .duplicateCandidateIdentifier(
                         variant.identifier
                     )
@@ -97,14 +98,14 @@ public struct AgentInferenceInstructionVariantGenerator:
             )
 
             guard !instructions.isEmpty else {
-                throw AgentInferenceInstructionVariantGeneratorError
+                throw InferenceInstructionVariantGeneratorError
                     .emptyInstructions(
                         variant.identifier
                     )
             }
 
             parsedVariants.append(
-                AgentInferenceInstructionVariant(
+                InferenceInstructionVariant(
                     identifier: variant.identifier,
                     instructions: instructions,
                     metadata: variant.metadata
@@ -113,7 +114,7 @@ public struct AgentInferenceInstructionVariantGenerator:
         }
 
         guard includeSeed || !parsedVariants.isEmpty else {
-            throw AgentInferenceInstructionVariantGeneratorError.noCandidates
+            throw InferenceInstructionVariantGeneratorError.noCandidates
         }
 
         return Self(
@@ -123,16 +124,16 @@ public struct AgentInferenceInstructionVariantGenerator:
         )
     }
 
-    public func generate<Inference: AgentInference>(
-        _ inference: Inference.Type,
-        examples: [AgentInferenceOptimizationExample<Inference>],
-        seed: AgentInferenceRealization
-    ) async throws -> [AgentInferenceRealizationCandidate] {
-        var candidates: [AgentInferenceRealizationCandidate] = []
+    public func generate<InferenceType: Inference>(
+        _ inference: InferenceType.Type,
+        examples: [InferenceOptimizationExample<InferenceType>],
+        seed: InferenceRealizationConfiguration
+    ) async throws -> [InferenceRealizationCandidate] {
+        var candidates: [InferenceRealizationCandidate] = []
 
         if includeSeed {
             candidates.append(
-                AgentInferenceRealizationCandidate(
+                InferenceRealizationCandidate(
                     identifier: seedIdentifier,
                     realization: seed,
                     source: .seed
@@ -145,7 +146,7 @@ public struct AgentInferenceInstructionVariantGenerator:
             realization.instructions = variant.instructions
 
             candidates.append(
-                AgentInferenceRealizationCandidate(
+                InferenceRealizationCandidate(
                     identifier: variant.identifier,
                     realization: realization,
                     source: .instruction_variant,

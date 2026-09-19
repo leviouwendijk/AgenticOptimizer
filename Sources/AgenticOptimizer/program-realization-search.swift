@@ -1,14 +1,15 @@
+import Agentic
 import AgenticInference
 import AgenticPrograms
 
-public struct ProgramRealizationSearch<Program: AgentProgram>: Sendable {
-    private let program: Program
-    private let inferenceExecutor: any AgentInferenceExecuting
+public struct ProgramRealizationSearch<ProgramType: Program>: Sendable {
+    private let program: ProgramType
+    private let inferenceExecutor: any InferenceExecuting
     private let objective: any ProgramOptimization.Objective
 
     public init(
-        program: Program,
-        inferenceExecutor: any AgentInferenceExecuting,
+        program: ProgramType,
+        inferenceExecutor: any InferenceExecuting,
         objective: any ProgramOptimization.Objective
     ) {
         self.program = program
@@ -17,13 +18,13 @@ public struct ProgramRealizationSearch<Program: AgentProgram>: Sendable {
     }
 
     public func optimize(
-        dataset: ProgramOptimization.Dataset<Program>,
-        seed: AgentProgramRealization<Program>,
-        sites: [ProgramOptimization.SiteCandidates],
+        dataset: ProgramOptimization.Dataset<ProgramType>,
+        seed: ProgramRealization<ProgramType>,
+        sites: [ProgramOptimization.SiteCandidates<ProgramType>],
         maximumCandidates: Int = 64,
         candidateIDPrefix: String = "combination"
-    ) async throws -> ProgramOptimization.Report<Program> {
-        let searchSpace = try ProgramOptimization.SearchSpace<Program>
+    ) async throws -> ProgramOptimization.Report<ProgramType> {
+        let searchSpace = try ProgramOptimization.SearchSpace<ProgramType>
             .parse(
                 seed: seed,
                 sites: sites
@@ -41,11 +42,11 @@ public struct ProgramRealizationSearch<Program: AgentProgram>: Sendable {
     }
 
     public func optimize(
-        dataset: ProgramOptimization.Dataset<Program>,
-        searchSpace: ProgramOptimization.SearchSpace<Program>,
+        dataset: ProgramOptimization.Dataset<ProgramType>,
+        searchSpace: ProgramOptimization.SearchSpace<ProgramType>,
         limit: ProgramOptimization.CandidateLimit = .standard,
         candidateIDPrefix: String = "combination"
-    ) async throws -> ProgramOptimization.Report<Program> {
+    ) async throws -> ProgramOptimization.Report<ProgramType> {
         let generator = ProgramRealizationCandidateGenerator(
             limit: limit,
             candidateIDPrefix: candidateIDPrefix
@@ -61,14 +62,14 @@ public struct ProgramRealizationSearch<Program: AgentProgram>: Sendable {
     }
 
     public func optimize(
-        dataset: ProgramOptimization.Dataset<Program>,
-        candidates: [ProgramOptimization.Candidate<Program>]
-    ) async throws -> ProgramOptimization.Report<Program> {
+        dataset: ProgramOptimization.Dataset<ProgramType>,
+        candidates: [ProgramOptimization.Candidate<ProgramType>]
+    ) async throws -> ProgramOptimization.Report<ProgramType> {
         let optimization = try await optimize(
             problem: ProgramOptimization.Problem(
                 examples: dataset.training,
                 candidates: try ProgramOptimization
-                    .Candidates<Program>
+                    .Candidates<ProgramType>
                     .parse(
                         candidates
                     )
@@ -86,13 +87,13 @@ public struct ProgramRealizationSearch<Program: AgentProgram>: Sendable {
     }
 
     public func optimize(
-        examples: [ProgramOptimization.Example<Program>],
-        seed: AgentProgramRealization<Program>,
-        sites: [ProgramOptimization.SiteCandidates],
+        examples: [ProgramOptimization.Example<ProgramType>],
+        seed: ProgramRealization<ProgramType>,
+        sites: [ProgramOptimization.SiteCandidates<ProgramType>],
         maximumCandidates: Int = 64,
         candidateIDPrefix: String = "combination"
-    ) async throws -> ProgramOptimization.Result<Program> {
-        let searchSpace = try ProgramOptimization.SearchSpace<Program>
+    ) async throws -> ProgramOptimization.Result<ProgramType> {
+        let searchSpace = try ProgramOptimization.SearchSpace<ProgramType>
             .parse(
                 seed: seed,
                 sites: sites
@@ -110,13 +111,13 @@ public struct ProgramRealizationSearch<Program: AgentProgram>: Sendable {
     }
 
     public func optimize(
-        examples: [ProgramOptimization.Example<Program>],
-        searchSpace: ProgramOptimization.SearchSpace<Program>,
+        examples: [ProgramOptimization.Example<ProgramType>],
+        searchSpace: ProgramOptimization.SearchSpace<ProgramType>,
         limit: ProgramOptimization.CandidateLimit = .standard,
         candidateIDPrefix: String = "combination"
-    ) async throws -> ProgramOptimization.Result<Program> {
+    ) async throws -> ProgramOptimization.Result<ProgramType> {
         let parsedExamples = try ProgramOptimization
-            .Examples<Program>
+            .Examples<ProgramType>
             .parse(
                 examples
             )
@@ -130,7 +131,7 @@ public struct ProgramRealizationSearch<Program: AgentProgram>: Sendable {
         let problem = ProgramOptimization.Problem(
             examples: parsedExamples,
             candidates: try ProgramOptimization
-                .Candidates<Program>
+                .Candidates<ProgramType>
                 .parse(
                     generated
                 )
@@ -142,9 +143,9 @@ public struct ProgramRealizationSearch<Program: AgentProgram>: Sendable {
     }
 
     public func optimize(
-        examples: [ProgramOptimization.Example<Program>],
-        candidates: [ProgramOptimization.Candidate<Program>]
-    ) async throws -> ProgramOptimization.Result<Program> {
+        examples: [ProgramOptimization.Example<ProgramType>],
+        candidates: [ProgramOptimization.Candidate<ProgramType>]
+    ) async throws -> ProgramOptimization.Result<ProgramType> {
         try await optimize(
             problem: ProgramOptimization.Problem.parse(
                 examples: examples,
@@ -154,15 +155,15 @@ public struct ProgramRealizationSearch<Program: AgentProgram>: Sendable {
     }
 
     public func optimize(
-        problem: ProgramOptimization.Problem<Program>
-    ) async throws -> ProgramOptimization.Result<Program> {
+        problem: ProgramOptimization.Problem<ProgramType>
+    ) async throws -> ProgramOptimization.Result<ProgramType> {
         var trials: [ProgramOptimization.Trial] = []
         var candidateResults: [
-            ProgramOptimization.CandidateResult<Program>
+            ProgramOptimization.CandidateResult<ProgramType>
         ] = []
 
         var selected = problem.candidates.initial
-        var selectedMean: AgentInferenceOptimizationScore?
+        var selectedMean: InferenceOptimizationScore?
 
         for candidate in problem.candidates {
             let evaluation = try await evaluate(
@@ -205,9 +206,9 @@ public struct ProgramRealizationSearch<Program: AgentProgram>: Sendable {
     }
 
     public func evaluate(
-        candidate: ProgramOptimization.Candidate<Program>,
-        examples: ProgramOptimization.Examples<Program>
-    ) async throws -> ProgramOptimization.Evaluation<Program> {
+        candidate: ProgramOptimization.Candidate<ProgramType>,
+        examples: ProgramOptimization.Examples<ProgramType>
+    ) async throws -> ProgramOptimization.Evaluation<ProgramType> {
         var trials: [ProgramOptimization.Trial] = []
         var meanValue = 0.0
         let exampleCount = Double(
@@ -222,11 +223,11 @@ public struct ProgramRealizationSearch<Program: AgentProgram>: Sendable {
                     base: inferenceExecutor,
                     recorder: recorder
                 )
-            let inferenceInvoker = AgentProgramInferenceInvoker(
+            let inferenceInvoker = ProgramInferenceInvoker(
                 realization: candidate.realization,
                 executor: recordingExecutor
             )
-            let context = AgentProgramContext(
+            let context = ProgramContext(
                 inference: inferenceInvoker
             )
             let startedAt = clock.now
@@ -246,7 +247,7 @@ public struct ProgramRealizationSearch<Program: AgentProgram>: Sendable {
                 )
             let executions = await recorder.snapshot()
             let score = try await objective.score(
-                Program.self,
+                ProgramType.self,
                 example: example,
                 output: output
             )
@@ -266,7 +267,7 @@ public struct ProgramRealizationSearch<Program: AgentProgram>: Sendable {
 
         return ProgramOptimization.Evaluation(
             candidate: candidate,
-            mean: try AgentInferenceOptimizationScore(
+            mean: try InferenceOptimizationScore(
                 value: meanValue
             ),
             trials: trials

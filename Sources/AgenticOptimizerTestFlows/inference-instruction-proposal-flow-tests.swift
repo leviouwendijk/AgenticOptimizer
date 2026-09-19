@@ -1,21 +1,22 @@
+import Agentic
 import AgenticInference
 import AgenticOptimizer
 import Foundation
 import TestFlows
 
-private struct ProposalSearchFixtureInference: AgentInference {
+private struct ProposalSearchFixtureInference: Inference {
     typealias Input = String
     typealias Output = String
 
-    static let definition = AgentInferenceDefinition(
+    static let definition = InferenceDefinition(
         identifier: "fixture.proposal_search",
         purpose: "Transform the supplied text to uppercase."
     )
 }
 
 private struct ProposalObservation: Sendable {
-    var input: ProposeInferenceInstructions.Input
-    var realization: AgentInferenceRealization
+    var input: Standard.Inferences.ProposeInferenceInstructions.Input
+    var realization: InferenceRealizationConfiguration
 }
 
 private actor ProposalRecorder {
@@ -35,21 +36,23 @@ private actor ProposalRecorder {
 }
 
 private struct ProposalFixtureExecutor:
-    AgentInferenceExecuting,
+    InferenceExecuting,
     Sendable
 {
     let recorder: ProposalRecorder
 
-    func execute<Inference: AgentInference>(
-        _ inference: Inference.Type,
-        input: Inference.Input,
-        realization: AgentInferenceRealization
-    ) async throws -> AgentInferenceExecutionResult<Inference.Output> {
+    func execute<InferenceType: Inference>(
+        _ inference: InferenceType.Type,
+        input: InferenceType.Input,
+        realization: InferenceRealizationConfiguration,
+        context: InferenceExecutionContext
+    ) async throws -> InferenceExecutionResult<InferenceType.Output> {
+        _ = context
         let inputData = try JSONEncoder().encode(
             input
         )
         let proposalInput = try JSONDecoder().decode(
-            ProposeInferenceInstructions.Input.self,
+            Standard.Inferences.ProposeInferenceInstructions.Input.self,
             from: inputData
         )
 
@@ -60,7 +63,7 @@ private struct ProposalFixtureExecutor:
             )
         )
 
-        let proposalSet = AgentInferenceInstructionProposalSet(
+        let proposalSet = InferenceInstructionProposalSet(
             proposals: [
                 .init(
                     instructions: "identity",
@@ -80,13 +83,13 @@ private struct ProposalFixtureExecutor:
             proposalSet
         )
         let output = try JSONDecoder().decode(
-            Inference.Output.self,
+            InferenceType.Output.self,
             from: outputData
         )
 
-        return AgentInferenceExecutionResult(
+        return InferenceExecutionResult(
             output: output,
-            record: AgentInferenceExecutionRecord(
+            record: InferenceExecutionRecord(
                 inference: inference.definition.identifier,
                 strategy: realization.strategy,
                 budget: realization.budget,
@@ -99,14 +102,16 @@ private struct ProposalFixtureExecutor:
 }
 
 private struct ProposalSearchFixtureExecutor:
-    AgentInferenceExecuting,
+    InferenceExecuting,
     Sendable
 {
-    func execute<Inference: AgentInference>(
-        _ inference: Inference.Type,
-        input: Inference.Input,
-        realization: AgentInferenceRealization
-    ) async throws -> AgentInferenceExecutionResult<Inference.Output> {
+    func execute<InferenceType: Inference>(
+        _ inference: InferenceType.Type,
+        input: InferenceType.Input,
+        realization: InferenceRealizationConfiguration,
+        context: InferenceExecutionContext
+    ) async throws -> InferenceExecutionResult<InferenceType.Output> {
+        _ = context
         let inputData = try JSONEncoder().encode(
             input
         )
@@ -137,13 +142,13 @@ private struct ProposalSearchFixtureExecutor:
             outputText
         )
         let output = try JSONDecoder().decode(
-            Inference.Output.self,
+            InferenceType.Output.self,
             from: outputData
         )
 
-        return AgentInferenceExecutionResult(
+        return InferenceExecutionResult(
             output: output,
-            record: AgentInferenceExecutionRecord(
+            record: InferenceExecutionRecord(
                 inference: inference.definition.identifier,
                 strategy: realization.strategy,
                 budget: realization.budget,
@@ -154,17 +159,17 @@ private struct ProposalSearchFixtureExecutor:
 }
 
 private struct ProposalExactOutputObjective:
-    AgentInferenceOptimizationObjective,
+    InferenceOptimizationObjective,
     Sendable
 {
-    let identifier: AgentInferenceOptimizationObjectiveIdentifier =
+    let identifier: InferenceOptimizationObjectiveIdentifier =
         "proposal_exact_output"
 
-    func score<Inference: AgentInference>(
-        _ inference: Inference.Type,
-        example: AgentInferenceOptimizationExample<Inference>,
-        result: AgentInferenceExecutionResult<Inference.Output>
-    ) async throws -> AgentInferenceOptimizationScore {
+    func score<InferenceType: Inference>(
+        _ inference: InferenceType.Type,
+        example: InferenceOptimizationExample<InferenceType>,
+        result: InferenceExecutionResult<InferenceType.Output>
+    ) async throws -> InferenceOptimizationScore {
         let expectedData = try JSONEncoder().encode(
             example.expectedOutput
         )
@@ -180,7 +185,7 @@ private struct ProposalExactOutputObjective:
             from: actualData
         )
 
-        return try AgentInferenceOptimizationScore(
+        return try InferenceOptimizationScore(
             value: expected == actual ? 1.0 : 0.0
         )
     }
@@ -193,13 +198,13 @@ private enum ProposalFixtureError:
     case unknownInstructions(String)
 }
 
-extension AgenticOptimizerFlowTesting {
+extension OptimizerFlowTesting {
     static func runInferenceInstructionProposal()
         async throws
         -> [TestFlowDiagnostic]
     {
         let examples: [
-            AgentInferenceOptimizationExample<ProposalSearchFixtureInference>
+            InferenceOptimizationExample<ProposalSearchFixtureInference>
         ] = [
             .init(
                 input: "alpha",
@@ -216,18 +221,16 @@ extension AgenticOptimizerFlowTesting {
                 ]
             ),
         ]
-        let seed = AgentInferenceRealization(
+        let seed = InferenceRealizationConfiguration(
             strategy: .direct,
-            modelSelection: .executor,
             instructions: "identity",
             budget: .singleAttempt,
             metadata: [
                 "seed": "preserved",
             ]
         )
-        let proposalRealization = AgentInferenceRealization(
+        let proposalRealization = InferenceRealizationConfiguration(
             strategy: .native_reasoning,
-            modelSelection: .executor,
             instructions: "Propose diverse complete instruction alternatives.",
             budget: .singleAttempt,
             metadata: [
@@ -236,7 +239,7 @@ extension AgenticOptimizerFlowTesting {
         )
 
         let recorder = ProposalRecorder()
-        let generator = try AgentInferenceInstructionProposalCandidateGenerator.parse(
+        let generator = try InferenceInstructionProposalCandidateGenerator.parse(
             proposer: ProposalFixtureExecutor(
                 recorder: recorder
             ),
@@ -248,14 +251,14 @@ extension AgenticOptimizerFlowTesting {
         var invalidMaximumRejected = false
 
         do {
-            _ = try AgentInferenceInstructionProposalCandidateGenerator.parse(
+            _ = try InferenceInstructionProposalCandidateGenerator.parse(
                 proposer: ProposalFixtureExecutor(
                     recorder: recorder
                 ),
                 proposalRealization: proposalRealization,
                 maximumProposals: 0
             )
-        } catch AgentInferenceInstructionProposalGeneratorError
+        } catch InferenceInstructionProposalGeneratorError
             .invalidMaximumProposals {
             invalidMaximumRejected = true
         }
@@ -269,7 +272,7 @@ extension AgenticOptimizerFlowTesting {
         var identifierCollisionRejected = false
 
         do {
-            _ = try AgentInferenceInstructionProposalCandidateGenerator.parse(
+            _ = try InferenceInstructionProposalCandidateGenerator.parse(
                 proposer: ProposalFixtureExecutor(
                     recorder: recorder
                 ),
@@ -278,7 +281,7 @@ extension AgenticOptimizerFlowTesting {
                 includeSeed: true,
                 seedIdentifier: "proposal_1"
             )
-        } catch AgentInferenceInstructionProposalGeneratorError
+        } catch InferenceInstructionProposalGeneratorError
             .duplicateCandidateIdentifier {
             identifierCollisionRejected = true
         }
@@ -289,7 +292,7 @@ extension AgenticOptimizerFlowTesting {
             "proposal generator parsing rejects seed identities reserved for generated proposals"
         )
 
-        let search = AgentInferenceRealizationSearch(
+        let search = InferenceRealizationSearch(
             executor: ProposalSearchFixtureExecutor(),
             objective: ProposalExactOutputObjective()
         )
@@ -350,7 +353,7 @@ extension AgenticOptimizerFlowTesting {
         )
         try Expect.equal(
             result.selectedCandidate.identifier,
-            AgentInferenceRealizationCandidateIdentifier(
+            InferenceRealizationCandidateIdentifier(
                 "proposal_2"
             ),
             "optimizer selects the best inference-proposed instruction candidate"
@@ -374,7 +377,7 @@ extension AgenticOptimizerFlowTesting {
         )
         try Expect.equal(
             result.selectedCandidate.generation?.inference,
-            ProposeInferenceInstructions.definition.identifier,
+            Standard.Inferences.ProposeInferenceInstructions.definition.identifier,
             "generated candidate preserves the proposal inference execution record"
         )
         try Expect.equal(
@@ -394,7 +397,7 @@ extension AgenticOptimizerFlowTesting {
             result
         )
         let decoded = try JSONDecoder().decode(
-            AgentInferenceOptimizationResult.self,
+            InferenceOptimizationResult.self,
             from: encoded
         )
 
@@ -407,7 +410,7 @@ extension AgenticOptimizerFlowTesting {
         return [
             .field(
                 "proposal_inference",
-                ProposeInferenceInstructions.definition.identifier.rawValue
+                Standard.Inferences.ProposeInferenceInstructions.definition.identifier.rawValue
             ),
             .field(
                 "proposal_strategy",

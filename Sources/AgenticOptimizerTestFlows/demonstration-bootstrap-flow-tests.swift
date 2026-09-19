@@ -1,28 +1,31 @@
+import Agentic
 import AgenticInference
 import AgenticOptimizer
 import Foundation
 import Primitives
 import TestFlows
 
-private struct BootstrapFixtureInference: AgentInference {
+private struct BootstrapFixtureInference: Inference {
     typealias Input = String
     typealias Output = String
 
-    static let definition = AgentInferenceDefinition(
+    static let definition = InferenceDefinition(
         identifier: "fixture.demonstration_bootstrap",
         purpose: "Transform supplied text to uppercase."
     )
 }
 
 private struct BootstrapFixtureExecutor:
-    AgentInferenceExecuting,
+    InferenceExecuting,
     Sendable
 {
-    func execute<Inference: AgentInference>(
-        _ inference: Inference.Type,
-        input: Inference.Input,
-        realization: AgentInferenceRealization
-    ) async throws -> AgentInferenceExecutionResult<Inference.Output> {
+    func execute<InferenceType: Inference>(
+        _ inference: InferenceType.Type,
+        input: InferenceType.Input,
+        realization: InferenceRealizationConfiguration,
+        context: InferenceExecutionContext
+    ) async throws -> InferenceExecutionResult<InferenceType.Output> {
+        _ = context
         let inputData = try JSONEncoder().encode(
             input
         )
@@ -49,13 +52,13 @@ private struct BootstrapFixtureExecutor:
             outputText
         )
         let output = try JSONDecoder().decode(
-            Inference.Output.self,
+            InferenceType.Output.self,
             from: outputData
         )
 
-        return AgentInferenceExecutionResult(
+        return InferenceExecutionResult(
             output: output,
-            record: AgentInferenceExecutionRecord(
+            record: InferenceExecutionRecord(
                 inference: inference.definition.identifier,
                 strategy: realization.strategy,
                 budget: realization.budget,
@@ -69,17 +72,17 @@ private struct BootstrapFixtureExecutor:
 }
 
 private struct BootstrapExactObjective:
-    AgentInferenceOptimizationObjective,
+    InferenceOptimizationObjective,
     Sendable
 {
-    let identifier: AgentInferenceOptimizationObjectiveIdentifier =
+    let identifier: InferenceOptimizationObjectiveIdentifier =
         "bootstrap_exact_output"
 
-    func score<Inference: AgentInference>(
-        _ inference: Inference.Type,
-        example: AgentInferenceOptimizationExample<Inference>,
-        result: AgentInferenceExecutionResult<Inference.Output>
-    ) async throws -> AgentInferenceOptimizationScore {
+    func score<InferenceType: Inference>(
+        _ inference: InferenceType.Type,
+        example: InferenceOptimizationExample<InferenceType>,
+        result: InferenceExecutionResult<InferenceType.Output>
+    ) async throws -> InferenceOptimizationScore {
         let expectedData = try JSONEncoder().encode(
             example.expectedOutput
         )
@@ -96,7 +99,7 @@ private struct BootstrapExactObjective:
             from: actualData
         )
 
-        return try AgentInferenceOptimizationScore(
+        return try InferenceOptimizationScore(
             value: expected == actual ? 1.0 : 0.0,
             metadata: [
                 "expected": expected,
@@ -106,13 +109,13 @@ private struct BootstrapExactObjective:
     }
 }
 
-extension AgenticOptimizerFlowTesting {
+extension OptimizerFlowTesting {
     static func runDemonstrationBootstrap()
         async throws
         -> [TestFlowDiagnostic]
     {
         let examples: [
-            AgentInferenceOptimizationExample<BootstrapFixtureInference>
+            InferenceOptimizationExample<BootstrapFixtureInference>
         ] = [
             .init(
                 input: "alpha",
@@ -128,18 +131,16 @@ extension AgenticOptimizerFlowTesting {
             ),
         ]
 
-        let seed = AgentInferenceRealization(
+        let seed = InferenceRealizationConfiguration(
             strategy: .direct,
-            modelSelection: .executor,
             instructions: "Use successful demonstrations to infer the transformation.",
             budget: .singleAttempt,
             metadata: [
                 "seed_marker": "preserved",
             ]
         )
-        let teacher = AgentInferenceRealization(
+        let teacher = InferenceRealizationConfiguration(
             strategy: .native_reasoning,
-            modelSelection: .executor,
             instructions: "Produce the best answer for this training example.",
             budget: .singleAttempt,
             metadata: [
@@ -147,7 +148,7 @@ extension AgenticOptimizerFlowTesting {
             ]
         )
         let objective = BootstrapExactObjective()
-        let generator = try AgentInferenceDemonstrationBootstrapGenerator.parse(
+        let generator = try InferenceDemonstrationBootstrapGenerator.parse(
             executor: BootstrapFixtureExecutor(),
             objective: objective,
             teacher: teacher,
@@ -187,11 +188,6 @@ extension AgenticOptimizerFlowTesting {
             generated[1].realization.strategy,
             seed.strategy,
             "bootstrapping preserves student strategy"
-        )
-        try Expect.equal(
-            generated[1].realization.modelSelection,
-            seed.modelSelection,
-            "bootstrapping preserves student model selection"
         )
         try Expect.equal(
             generated[1].realization.metadata[
@@ -269,7 +265,7 @@ extension AgenticOptimizerFlowTesting {
             "bootstrap retains exact execution provenance for rejected trials"
         )
 
-        let search = AgentInferenceRealizationSearch(
+        let search = InferenceRealizationSearch(
             executor: BootstrapFixtureExecutor(),
             objective: objective
         )
@@ -302,7 +298,7 @@ extension AgenticOptimizerFlowTesting {
         )
         try Expect.equal(
             result.selectedCandidate.identifier,
-            AgentInferenceRealizationCandidateIdentifier(
+            InferenceRealizationCandidateIdentifier(
                 "bootstrapped"
             ),
             "optimizer selects the improved bootstrapped realization"
@@ -322,7 +318,7 @@ extension AgenticOptimizerFlowTesting {
             result
         )
         let decoded = try JSONDecoder().decode(
-            AgentInferenceOptimizationResult.self,
+            InferenceOptimizationResult.self,
             from: encoded
         )
 
@@ -335,7 +331,7 @@ extension AgenticOptimizerFlowTesting {
         var collisionRejected = false
 
         do {
-            _ = try AgentInferenceDemonstrationBootstrapGenerator.parse(
+            _ = try InferenceDemonstrationBootstrapGenerator.parse(
                 executor: BootstrapFixtureExecutor(),
                 objective: objective,
                 teacher: teacher,
@@ -344,7 +340,7 @@ extension AgenticOptimizerFlowTesting {
                 seedIdentifier: "same",
                 bootstrapIdentifier: "same"
             )
-        } catch AgentInferenceDemonstrationBootstrapGeneratorError
+        } catch InferenceDemonstrationBootstrapGeneratorError
             .duplicateCandidateIdentifier {
             collisionRejected = true
         }
@@ -358,14 +354,14 @@ extension AgenticOptimizerFlowTesting {
         var nonFiniteMinimumRejected = false
 
         do {
-            _ = try AgentInferenceDemonstrationBootstrapGenerator.parse(
+            _ = try InferenceDemonstrationBootstrapGenerator.parse(
                 executor: BootstrapFixtureExecutor(),
                 objective: objective,
                 teacher: teacher,
                 minimumScore: .infinity,
                 includeSeed: false
             )
-        } catch AgentInferenceOptimizationScoreParsingError
+        } catch InferenceOptimizationScoreParsingError
             .nonFinite {
             nonFiniteMinimumRejected = true
         }

@@ -1,28 +1,31 @@
+import Agentic
 import AgenticInference
 import AgenticOptimizer
 import Foundation
 import Primitives
 import TestFlows
 
-private struct DemonstrationFixtureInference: AgentInference {
+private struct DemonstrationFixtureInference: Inference {
     typealias Input = String
     typealias Output = String
 
-    static let definition = AgentInferenceDefinition(
+    static let definition = InferenceDefinition(
         identifier: "fixture.demonstration_search",
         purpose: "Prove demonstration sets can be optimized independently from other realization fields."
     )
 }
 
 private struct DemonstrationFixtureExecutor:
-    AgentInferenceExecuting,
+    InferenceExecuting,
     Sendable
 {
-    func execute<Inference: AgentInference>(
-        _ inference: Inference.Type,
-        input: Inference.Input,
-        realization: AgentInferenceRealization
-    ) async throws -> AgentInferenceExecutionResult<Inference.Output> {
+    func execute<InferenceType: Inference>(
+        _ inference: InferenceType.Type,
+        input: InferenceType.Input,
+        realization: InferenceRealizationConfiguration,
+        context: InferenceExecutionContext
+    ) async throws -> InferenceExecutionResult<InferenceType.Output> {
+        _ = context
         let inputData = try JSONEncoder().encode(
             input
         )
@@ -57,13 +60,13 @@ private struct DemonstrationFixtureExecutor:
             outputText
         )
         let output = try JSONDecoder().decode(
-            Inference.Output.self,
+            InferenceType.Output.self,
             from: outputData
         )
 
-        return AgentInferenceExecutionResult(
+        return InferenceExecutionResult(
             output: output,
-            record: AgentInferenceExecutionRecord(
+            record: InferenceExecutionRecord(
                 inference: inference.definition.identifier,
                 strategy: realization.strategy,
                 budget: realization.budget,
@@ -78,17 +81,17 @@ private struct DemonstrationFixtureExecutor:
 }
 
 private struct DemonstrationExactObjective:
-    AgentInferenceOptimizationObjective,
+    InferenceOptimizationObjective,
     Sendable
 {
-    let identifier: AgentInferenceOptimizationObjectiveIdentifier =
+    let identifier: InferenceOptimizationObjectiveIdentifier =
         "demonstration_exact_output"
 
-    func score<Inference: AgentInference>(
-        _ inference: Inference.Type,
-        example: AgentInferenceOptimizationExample<Inference>,
-        result: AgentInferenceExecutionResult<Inference.Output>
-    ) async throws -> AgentInferenceOptimizationScore {
+    func score<InferenceType: Inference>(
+        _ inference: InferenceType.Type,
+        example: InferenceOptimizationExample<InferenceType>,
+        result: InferenceExecutionResult<InferenceType.Output>
+    ) async throws -> InferenceOptimizationScore {
         let expectedData = try JSONEncoder().encode(
             example.expectedOutput
         )
@@ -105,7 +108,7 @@ private struct DemonstrationExactObjective:
             from: actualData
         )
 
-        return try AgentInferenceOptimizationScore(
+        return try InferenceOptimizationScore(
             value: expected == actual ? 1.0 : 0.0
         )
     }
@@ -118,13 +121,13 @@ private enum DemonstrationFixtureError:
     case unknownBehavior(String)
 }
 
-extension AgenticOptimizerFlowTesting {
+extension OptimizerFlowTesting {
     static func runDemonstrationOptimization()
         async throws
         -> [TestFlowDiagnostic]
     {
         let examples: [
-            AgentInferenceOptimizationExample<DemonstrationFixtureInference>
+            InferenceOptimizationExample<DemonstrationFixtureInference>
         ] = [
             .init(
                 input: "alpha",
@@ -136,9 +139,8 @@ extension AgenticOptimizerFlowTesting {
             ),
         ]
 
-        let seed = AgentInferenceRealization(
+        let seed = InferenceRealizationConfiguration(
             strategy: .direct,
-            modelSelection: .executor,
             instructions: "Use the supplied demonstrations to perform the transformation.",
             budget: .singleAttempt,
             demonstrations: [],
@@ -147,14 +149,14 @@ extension AgenticOptimizerFlowTesting {
             ]
         )
 
-        let constantDemonstration = AgentInferenceDemonstration(
+        let constantDemonstration = InferenceDemonstration(
             input: .string("alpha"),
             output: .string("ALPHA"),
             metadata: [
                 "fixture.behavior": "constant",
             ]
         )
-        let uppercaseDemonstration = AgentInferenceDemonstration(
+        let uppercaseDemonstration = InferenceDemonstration(
             input: .string("example"),
             output: .string("EXAMPLE"),
             metadata: [
@@ -162,7 +164,7 @@ extension AgenticOptimizerFlowTesting {
             ]
         )
 
-        let generator = try AgentInferenceDemonstrationVariantGenerator.parse(
+        let generator = try InferenceDemonstrationVariantGenerator.parse(
             variants: [
                 .init(
                     identifier: "constant_demo",
@@ -226,11 +228,6 @@ extension AgenticOptimizerFlowTesting {
             "demonstration generation preserves inference strategy"
         )
         try Expect.equal(
-            generated[2].realization.modelSelection,
-            seed.modelSelection,
-            "demonstration generation preserves model selection"
-        )
-        try Expect.equal(
             generated[2].realization.budget,
             seed.budget,
             "demonstration generation preserves inference budget"
@@ -255,7 +252,7 @@ extension AgenticOptimizerFlowTesting {
             "candidate metadata remains separate from realization metadata"
         )
 
-        let search = AgentInferenceRealizationSearch(
+        let search = InferenceRealizationSearch(
             executor: DemonstrationFixtureExecutor(),
             objective: DemonstrationExactObjective()
         )
@@ -293,7 +290,7 @@ extension AgenticOptimizerFlowTesting {
         )
         try Expect.equal(
             result.selectedCandidate.identifier,
-            AgentInferenceRealizationCandidateIdentifier(
+            InferenceRealizationCandidateIdentifier(
                 "uppercase_demo"
             ),
             "optimizer selects the best demonstration set"
@@ -314,7 +311,7 @@ extension AgenticOptimizerFlowTesting {
         var duplicateRejected = false
 
         do {
-            _ = try AgentInferenceDemonstrationVariantGenerator.parse(
+            _ = try InferenceDemonstrationVariantGenerator.parse(
                 variants: [
                     .init(
                         identifier: "duplicate",
@@ -329,7 +326,7 @@ extension AgenticOptimizerFlowTesting {
                 ],
                 includeSeed: false
             )
-        } catch AgentInferenceDemonstrationVariantGeneratorError
+        } catch InferenceDemonstrationVariantGeneratorError
             .duplicateCandidateIdentifier {
             duplicateRejected = true
         }
@@ -343,11 +340,11 @@ extension AgenticOptimizerFlowTesting {
         var noCandidatesRejected = false
 
         do {
-            _ = try AgentInferenceDemonstrationVariantGenerator.parse(
+            _ = try InferenceDemonstrationVariantGenerator.parse(
                 variants: [],
                 includeSeed: false
             )
-        } catch AgentInferenceDemonstrationVariantGeneratorError
+        } catch InferenceDemonstrationVariantGeneratorError
             .noCandidates {
             noCandidatesRejected = true
         }
@@ -362,7 +359,7 @@ extension AgenticOptimizerFlowTesting {
             result
         )
         let decoded = try JSONDecoder().decode(
-            AgentInferenceOptimizationResult.self,
+            InferenceOptimizationResult.self,
             from: encoded
         )
 

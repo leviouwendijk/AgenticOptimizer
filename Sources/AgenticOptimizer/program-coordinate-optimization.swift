@@ -1,3 +1,4 @@
+import Agentic
 import AgenticInference
 import AgenticPrograms
 import Foundation
@@ -87,9 +88,9 @@ public extension ProgramOptimization {
     {
         public var pass: Int
         public var siteIndex: Int
-        public var site: AgentInferenceSiteIdentifier
-        public var before: AgentInferenceOptimizationScore
-        public var after: AgentInferenceOptimizationScore
+        public var site: InferenceSiteIdentifier
+        public var before: InferenceOptimizationScore
+        public var after: InferenceOptimizationScore
         public var selection: SiteSelection?
         public var trialIndexes: [Int]
 
@@ -100,9 +101,9 @@ public extension ProgramOptimization {
         public init(
             pass: Int,
             siteIndex: Int,
-            site: AgentInferenceSiteIdentifier,
-            before: AgentInferenceOptimizationScore,
-            after: AgentInferenceOptimizationScore,
+            site: InferenceSiteIdentifier,
+            before: InferenceOptimizationScore,
+            after: InferenceOptimizationScore,
             selection: SiteSelection?,
             trialIndexes: [Int]
         ) {
@@ -116,12 +117,12 @@ public extension ProgramOptimization {
         }
     }
 
-    struct CoordinateResult<Program: AgentProgram>:
+    struct CoordinateResult<ProgramType: Program>:
         Sendable
     {
         public var objective: ObjectiveID
-        public var selected: Candidate<Program>
-        public var score: AgentInferenceOptimizationScore
+        public var selected: Candidate<ProgramType>
+        public var score: InferenceOptimizationScore
         public var passesCompleted: Int
         public var decisions: [CoordinateDecision]
         public var trials: [Trial]
@@ -129,8 +130,8 @@ public extension ProgramOptimization {
 
         public init(
             objective: ObjectiveID,
-            selected: Candidate<Program>,
-            score: AgentInferenceOptimizationScore,
+            selected: Candidate<ProgramType>,
+            score: InferenceOptimizationScore,
             passesCompleted: Int,
             decisions: [CoordinateDecision],
             trials: [Trial],

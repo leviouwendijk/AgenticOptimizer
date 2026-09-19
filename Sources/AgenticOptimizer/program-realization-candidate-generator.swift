@@ -1,3 +1,4 @@
+import Agentic
 import AgenticPrograms
 
 public struct ProgramRealizationCandidateGenerator: Sendable {
@@ -12,9 +13,9 @@ public struct ProgramRealizationCandidateGenerator: Sendable {
         self.candidateIDPrefix = candidateIDPrefix
     }
 
-    public func generate<Program: AgentProgram>(
-        from searchSpace: ProgramOptimization.SearchSpace<Program>
-    ) -> [ProgramOptimization.Candidate<Program>] {
+    public func generate<ProgramType: Program>(
+        from searchSpace: ProgramOptimization.SearchSpace<ProgramType>
+    ) -> [ProgramOptimization.Candidate<ProgramType>] {
         let sites = searchSpace.sites
         let candidateCounts = sites.map {
             $0.candidates.count
@@ -24,7 +25,7 @@ public struct ProgramRealizationCandidateGenerator: Sendable {
             count: sites.count
         )
         var generated: [
-            ProgramOptimization.Candidate<Program>
+            ProgramOptimization.Candidate<ProgramType>
         ] = []
 
         while generated.count < limit.value {
@@ -34,10 +35,6 @@ public struct ProgramRealizationCandidateGenerator: Sendable {
             )
 
             var realization = searchSpace.seed
-            realization.id = AgentProgramRealizationIdentifier(
-                "\(searchSpace.seed.id.rawValue).\(candidateID.rawValue)"
-            )
-
             var selections: [ProgramOptimization.SiteSelection] = []
 
             for siteIndex in sites.indices {
@@ -46,12 +43,9 @@ public struct ProgramRealizationCandidateGenerator: Sendable {
                     indexes[siteIndex]
                 ]
 
-                realization.inferences.set(
-                    AgentInferenceRealizationBinding(
-                        site: site.site,
-                        inference: site.inference,
-                        realization: candidate.realization
-                    )
+                realization = site.applying(
+                    candidate,
+                    to: realization
                 )
 
                 selections.append(

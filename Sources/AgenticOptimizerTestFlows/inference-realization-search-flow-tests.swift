@@ -1,27 +1,30 @@
+import Agentic
 import AgenticInference
 import AgenticOptimizer
 import Foundation
 import TestFlows
 
-private struct OptimizerFixtureInference: AgentInference {
+private struct OptimizerFixtureInference: Inference {
     typealias Input = String
     typealias Output = String
 
-    static let definition = AgentInferenceDefinition(
+    static let definition = InferenceDefinition(
         identifier: "fixture.optimizer_search",
         purpose: "Prove deterministic realization optimization."
     )
 }
 
 private struct OptimizerFixtureExecutor:
-    AgentInferenceExecuting,
+    InferenceExecuting,
     Sendable
 {
-    func execute<Inference: AgentInference>(
-        _ inference: Inference.Type,
-        input: Inference.Input,
-        realization: AgentInferenceRealization
-    ) async throws -> AgentInferenceExecutionResult<Inference.Output> {
+    func execute<InferenceType: Inference>(
+        _ inference: InferenceType.Type,
+        input: InferenceType.Input,
+        realization: InferenceRealizationConfiguration,
+        context: InferenceExecutionContext
+    ) async throws -> InferenceExecutionResult<InferenceType.Output> {
+        _ = context
         let inputData = try JSONEncoder().encode(
             input
         )
@@ -52,13 +55,13 @@ private struct OptimizerFixtureExecutor:
             outputText
         )
         let output = try JSONDecoder().decode(
-            Inference.Output.self,
+            InferenceType.Output.self,
             from: outputData
         )
 
-        return AgentInferenceExecutionResult(
+        return InferenceExecutionResult(
             output: output,
-            record: AgentInferenceExecutionRecord(
+            record: InferenceExecutionRecord(
                 inference: inference.definition.identifier,
                 strategy: realization.strategy,
                 budget: realization.budget,
@@ -69,17 +72,17 @@ private struct OptimizerFixtureExecutor:
 }
 
 private struct ExactOutputObjective:
-    AgentInferenceOptimizationObjective,
+    InferenceOptimizationObjective,
     Sendable
 {
-    let identifier: AgentInferenceOptimizationObjectiveIdentifier =
+    let identifier: InferenceOptimizationObjectiveIdentifier =
         "exact_output"
 
-    func score<Inference: AgentInference>(
-        _ inference: Inference.Type,
-        example: AgentInferenceOptimizationExample<Inference>,
-        result: AgentInferenceExecutionResult<Inference.Output>
-    ) async throws -> AgentInferenceOptimizationScore {
+    func score<InferenceType: Inference>(
+        _ inference: InferenceType.Type,
+        example: InferenceOptimizationExample<InferenceType>,
+        result: InferenceExecutionResult<InferenceType.Output>
+    ) async throws -> InferenceOptimizationScore {
         let expectedData = try JSONEncoder().encode(
             example.expectedOutput
         )
@@ -96,7 +99,7 @@ private struct ExactOutputObjective:
             from: actualData
         )
 
-        return try AgentInferenceOptimizationScore(
+        return try InferenceOptimizationScore(
             value: expected == actual ? 1.0 : 0.0,
             metadata: [
                 "expected": expected,
@@ -113,13 +116,13 @@ private enum OptimizerFixtureError:
     case unknownInstructions(String)
 }
 
-enum AgenticOptimizerFlowTesting {
+enum OptimizerFlowTesting {
     static func runInferenceRealizationSearch()
         async throws
         -> [TestFlowDiagnostic]
     {
         let examples: [
-            AgentInferenceOptimizationExample<OptimizerFixtureInference>
+            InferenceOptimizationExample<OptimizerFixtureInference>
         ] = [
             .init(
                 input: "alpha",
@@ -131,12 +134,11 @@ enum AgenticOptimizerFlowTesting {
             ),
         ]
 
-        let candidates: [AgentInferenceRealizationCandidate] = [
+        let candidates: [InferenceRealizationCandidate] = [
             .init(
                 identifier: "constant",
-                realization: AgentInferenceRealization(
+                realization: InferenceRealizationConfiguration(
                     strategy: .direct,
-                    modelSelection: .executor,
                     instructions: "constant",
                     budget: .singleAttempt,
                     metadata: [
@@ -146,9 +148,8 @@ enum AgenticOptimizerFlowTesting {
             ),
             .init(
                 identifier: "identity",
-                realization: AgentInferenceRealization(
+                realization: InferenceRealizationConfiguration(
                     strategy: .direct,
-                    modelSelection: .executor,
                     instructions: "identity",
                     budget: .singleAttempt,
                     metadata: [
@@ -158,9 +159,8 @@ enum AgenticOptimizerFlowTesting {
             ),
             .init(
                 identifier: "uppercase_first",
-                realization: AgentInferenceRealization(
+                realization: InferenceRealizationConfiguration(
                     strategy: .direct,
-                    modelSelection: .executor,
                     instructions: "uppercase",
                     budget: .singleAttempt,
                     metadata: [
@@ -170,9 +170,8 @@ enum AgenticOptimizerFlowTesting {
             ),
             .init(
                 identifier: "uppercase_second",
-                realization: AgentInferenceRealization(
+                realization: InferenceRealizationConfiguration(
                     strategy: .direct,
-                    modelSelection: .executor,
                     instructions: "uppercase",
                     budget: .singleAttempt,
                     metadata: [
@@ -182,7 +181,7 @@ enum AgenticOptimizerFlowTesting {
             ),
         ]
 
-        let search = AgentInferenceRealizationSearch(
+        let search = InferenceRealizationSearch(
             executor: OptimizerFixtureExecutor(),
             objective: ExactOutputObjective()
         )
@@ -234,7 +233,7 @@ enum AgenticOptimizerFlowTesting {
         )
         try Expect.equal(
             result.selectedCandidate.identifier,
-            AgentInferenceRealizationCandidateIdentifier(
+            InferenceRealizationCandidateIdentifier(
                 "uppercase_first"
             ),
             "optimizer uses stable first-candidate tie breaking"
@@ -252,7 +251,7 @@ enum AgenticOptimizerFlowTesting {
             result
         )
         let decoded = try JSONDecoder().decode(
-            AgentInferenceOptimizationResult.self,
+            InferenceOptimizationResult.self,
             from: encoded
         )
 
@@ -270,7 +269,7 @@ enum AgenticOptimizerFlowTesting {
                 examples: examples,
                 candidates: []
             )
-        } catch AgentInferenceOptimizationProblemParsingError.noCandidates {
+        } catch InferenceOptimizationProblemParsingError.noCandidates {
             emptyCandidatesRejected = true
         }
 
@@ -288,7 +287,7 @@ enum AgenticOptimizerFlowTesting {
                 examples: [],
                 candidates: candidates
             )
-        } catch AgentInferenceOptimizationProblemParsingError.noExamples {
+        } catch InferenceOptimizationProblemParsingError.noExamples {
             emptyExamplesRejected = true
         }
 

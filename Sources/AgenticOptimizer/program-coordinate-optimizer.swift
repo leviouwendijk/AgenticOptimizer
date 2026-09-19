@@ -1,15 +1,16 @@
+import Agentic
 import AgenticInference
 import AgenticPrograms
 
-public struct ProgramCoordinateOptimizer<Program: AgentProgram>:
+public struct ProgramCoordinateOptimizer<ProgramType: Program>:
     Sendable
 {
-    private let search: ProgramRealizationSearch<Program>
+    private let search: ProgramRealizationSearch<ProgramType>
     private let objectiveID: ProgramOptimization.ObjectiveID
 
     public init(
-        program: Program,
-        inferenceExecutor: any AgentInferenceExecuting,
+        program: ProgramType,
+        inferenceExecutor: any InferenceExecuting,
         objective: any ProgramOptimization.Objective
     ) {
         self.search = ProgramRealizationSearch(
@@ -21,13 +22,13 @@ public struct ProgramCoordinateOptimizer<Program: AgentProgram>:
     }
 
     public func optimize(
-        dataset: ProgramOptimization.Dataset<Program>,
-        seed: AgentProgramRealization<Program>,
-        sites: [ProgramOptimization.SiteCandidates],
+        dataset: ProgramOptimization.Dataset<ProgramType>,
+        seed: ProgramRealization<ProgramType>,
+        sites: [ProgramOptimization.SiteCandidates<ProgramType>],
         maximumPasses: Int = 4
-    ) async throws -> ProgramOptimization.CoordinateReport<Program> {
+    ) async throws -> ProgramOptimization.CoordinateReport<ProgramType> {
         let searchSpace = try ProgramOptimization
-            .SearchSpace<Program>
+            .SearchSpace<ProgramType>
             .parse(
                 seed: seed,
                 sites: sites
@@ -54,18 +55,18 @@ public struct ProgramCoordinateOptimizer<Program: AgentProgram>:
     }
 
     public func optimize(
-        examples: [ProgramOptimization.Example<Program>],
-        seed: AgentProgramRealization<Program>,
-        sites: [ProgramOptimization.SiteCandidates],
+        examples: [ProgramOptimization.Example<ProgramType>],
+        seed: ProgramRealization<ProgramType>,
+        sites: [ProgramOptimization.SiteCandidates<ProgramType>],
         maximumPasses: Int = 4
-    ) async throws -> ProgramOptimization.CoordinateResult<Program> {
+    ) async throws -> ProgramOptimization.CoordinateResult<ProgramType> {
         let parsedExamples = try ProgramOptimization
-            .Examples<Program>
+            .Examples<ProgramType>
             .parse(
                 examples
             )
         let searchSpace = try ProgramOptimization
-            .SearchSpace<Program>
+            .SearchSpace<ProgramType>
             .parse(
                 seed: seed,
                 sites: sites
@@ -84,10 +85,10 @@ public struct ProgramCoordinateOptimizer<Program: AgentProgram>:
     }
 
     public func optimize(
-        examples: ProgramOptimization.Examples<Program>,
-        searchSpace: ProgramOptimization.SearchSpace<Program>,
+        examples: ProgramOptimization.Examples<ProgramType>,
+        searchSpace: ProgramOptimization.SearchSpace<ProgramType>,
         passLimit: ProgramOptimization.CoordinatePassLimit = .standard
-    ) async throws -> ProgramOptimization.CoordinateResult<Program> {
+    ) async throws -> ProgramOptimization.CoordinateResult<ProgramType> {
         var current = ProgramOptimization.Candidate(
             id: ProgramOptimization.CandidateID(
                 rawValue: "coordinate_seed"
@@ -101,7 +102,7 @@ public struct ProgramCoordinateOptimizer<Program: AgentProgram>:
         let initialProblem = ProgramOptimization.Problem(
             examples: examples,
             candidates: try ProgramOptimization
-                .Candidates<Program>
+                .Candidates<ProgramType>
                 .parse(
                     [
                         current,
@@ -124,7 +125,6 @@ public struct ProgramCoordinateOptimizer<Program: AgentProgram>:
             for (siteIndex, site) in searchSpace.sites.enumerated() {
                 let candidates = coordinateCandidates(
                     current: current,
-                    seed: searchSpace.seed,
                     site: site,
                     pass: pass,
                     siteIndex: siteIndex
@@ -132,7 +132,7 @@ public struct ProgramCoordinateOptimizer<Program: AgentProgram>:
                 let problem = ProgramOptimization.Problem(
                     examples: examples,
                     candidates: try ProgramOptimization
-                        .Candidates<Program>
+                        .Candidates<ProgramType>
                         .parse(
                             candidates
                         )
@@ -213,14 +213,13 @@ public struct ProgramCoordinateOptimizer<Program: AgentProgram>:
     }
 
     private func coordinateCandidates(
-        current: ProgramOptimization.Candidate<Program>,
-        seed: AgentProgramRealization<Program>,
-        site: ProgramOptimization.ResolvedSite,
+        current: ProgramOptimization.Candidate<ProgramType>,
+        site: ProgramOptimization.SiteCandidates<ProgramType>,
         pass: Int,
         siteIndex: Int
-    ) -> [ProgramOptimization.Candidate<Program>] {
+    ) -> [ProgramOptimization.Candidate<ProgramType>] {
         let siteNumber = siteIndex + 1
-        var candidates: [ProgramOptimization.Candidate<Program>] = []
+        var candidates: [ProgramOptimization.Candidate<ProgramType>] = []
 
         for (candidateIndex, inferenceCandidate) in
             site.candidates.enumerated()
@@ -229,17 +228,9 @@ public struct ProgramCoordinateOptimizer<Program: AgentProgram>:
             let candidateID = ProgramOptimization.CandidateID(
                 rawValue: "coordinate_p\(pass)_s\(siteNumber)_c\(candidateNumber)"
             )
-            var realization = current.realization
-
-            realization.id = AgentProgramRealizationIdentifier(
-                rawValue: "\(seed.id.rawValue).\(candidateID.rawValue)"
-            )
-            realization.inferences.set(
-                AgentInferenceRealizationBinding(
-                    site: site.site,
-                    inference: site.inference,
-                    realization: inferenceCandidate.realization
-                )
+            let realization = site.applying(
+                inferenceCandidate,
+                to: current.realization
             )
 
             let selection = ProgramOptimization.SiteSelection(
