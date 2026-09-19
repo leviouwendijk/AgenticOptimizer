@@ -1,0 +1,190 @@
+{
+  "failed" : 0,
+  "failed_names" : [
+
+  ],
+  "generated_at" : "2026-09-19T17:55:19Z",
+  "passed" : 12,
+  "results" : [
+    {
+      "display_name" : "inference-realization-search",
+      "duration_seconds" : 0.006873011589050293,
+      "name" : "inference-realization-search",
+      "status" : "passed",
+      "tags" : [
+        "agentic-optimizer",
+        "inference",
+        "objective",
+        "realization",
+        "search"
+      ]
+    },
+    {
+      "display_name" : "instruction-candidate-generation",
+      "duration_seconds" : 0.0011709928512573242,
+      "name" : "instruction-candidate-generation",
+      "status" : "passed",
+      "tags" : [
+        "agentic-optimizer",
+        "generation",
+        "inference",
+        "instructions",
+        "realization",
+        "search"
+      ]
+    },
+    {
+      "display_name" : "inference-instruction-proposal",
+      "duration_seconds" : 0.0020570755004882812,
+      "name" : "inference-instruction-proposal",
+      "status" : "passed",
+      "tags" : [
+        "agentic-optimizer",
+        "generation",
+        "inference",
+        "instructions",
+        "optimization",
+        "proposal"
+      ]
+    },
+    {
+      "display_name" : "demonstration-optimization",
+      "duration_seconds" : 0.0008989572525024414,
+      "name" : "demonstration-optimization",
+      "status" : "passed",
+      "tags" : [
+        "agentic-optimizer",
+        "demonstrations",
+        "few-shot",
+        "inference",
+        "optimization",
+        "search"
+      ]
+    },
+    {
+      "display_name" : "demonstration-bootstrap",
+      "duration_seconds" : 0.0008469820022583008,
+      "name" : "demonstration-bootstrap",
+      "status" : "passed",
+      "tags" : [
+        "agentic-optimizer",
+        "bootstrap",
+        "demonstrations",
+        "inference",
+        "optimization",
+        "teacher"
+      ]
+    },
+    {
+      "display_name" : "program-realization-optimization",
+      "duration_seconds" : 0.00047397613525390625,
+      "name" : "program-realization-optimization",
+      "status" : "passed",
+      "tags" : [
+        "agentic-optimizer",
+        "inference-sites",
+        "optimization",
+        "program",
+        "realization",
+        "search"
+      ]
+    },
+    {
+      "display_name" : "program-candidate-generation",
+      "duration_seconds" : 0.00034797191619873047,
+      "name" : "program-candidate-generation",
+      "status" : "passed",
+      "tags" : [
+        "agentic-optimizer",
+        "bounded",
+        "generation",
+        "inference-sites",
+        "optimization",
+        "program",
+        "provenance"
+      ]
+    },
+    {
+      "display_name" : "optimization-input-parsing",
+      "duration_seconds" : 0.00010502338409423828,
+      "name" : "optimization-input-parsing",
+      "status" : "passed",
+      "tags" : [
+        "agentic-optimizer",
+        "codable",
+        "optimization",
+        "parsing",
+        "problem",
+        "score"
+      ]
+    },
+    {
+      "display_name" : "program-coordinate-optimization",
+      "duration_seconds" : 0.0006529092788696289,
+      "name" : "program-coordinate-optimization",
+      "status" : "passed",
+      "tags" : [
+        "agentic-optimizer",
+        "bounded",
+        "convergence",
+        "coordinate",
+        "inference-sites",
+        "optimization",
+        "program",
+        "provenance"
+      ]
+    },
+    {
+      "display_name" : "optimization-held-out-evaluation",
+      "duration_seconds" : 0.00028896331787109375,
+      "name" : "optimization-held-out-evaluation",
+      "status" : "passed",
+      "tags" : [
+        "agentic-optimizer",
+        "coordinate",
+        "evaluation",
+        "held-out",
+        "inference",
+        "optimization",
+        "program",
+        "training"
+      ]
+    },
+    {
+      "display_name" : "multi-objective-optimization",
+      "duration_seconds" : 0.0003769397735595703,
+      "name" : "multi-objective-optimization",
+      "status" : "passed",
+      "tags" : [
+        "agentic-optimizer",
+        "cost",
+        "inference",
+        "latency",
+        "multi-objective",
+        "optimization",
+        "program",
+        "quality",
+        "tokens"
+      ]
+    },
+    {
+      "display_name" : "program-optimization-compiler",
+      "duration_seconds" : 0.0004589557647705078,
+      "name" : "program-optimization-compiler",
+      "status" : "passed",
+      "tags" : [
+        "agentic-optimizer",
+        "candidate-generation",
+        "compiler",
+        "coordinate",
+        "held-out",
+        "optimization",
+        "program",
+        "provenance"
+      ]
+    }
+  ],
+  "skipped" : 0,
+  "title" : "AgenticOptimizer flow tests",
+  "total" : 12
+}
